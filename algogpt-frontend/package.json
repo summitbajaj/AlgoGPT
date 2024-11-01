@@ -1,0 +1,36 @@
+{
+  "name": "algogpt-frontend",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {
+    "dev": "next dev",
+    "build": "next build",
+    "start": "next start",
+    "lint": "next lint",
+    "start-pyright": "tsx src/app/server/direct.ts"
+  },
+  "dependencies": {
+    "@codingame/monaco-vscode-python-default-extension": "^10.1.4",
+    "@typefox/monaco-editor-react": "~6.0.0-next.6",
+    "monaco-editor-wrapper": "~6.0.0-next.6",
+    "monaco-languageclient": "^9.0.0-next.6",
+    "next": "14.2.15",
+    "react": "^18",
+    "react-dom": "^18",
+    "vscode-ws-jsonrpc": "^3.3.2"
+  },
+  "devDependencies": {
+    "@types/node": "^20",
+    "@types/react": "^18",
+    "@types/react-dom": "^18",
+    "eslint": "^8",
+    "eslint-config-next": "14.2.15",
+    "postcss": "^8",
+    "pyright": "^1.1.387",
+    "raw-loader": "^4.0.2",
+    "tailwindcss": "^3.4.1",
+    "ts-node": "^10.9.2",
+    "tsx": "^4.19.2",
+    "typescript": "^5"
+  }
+}
