@@ -1,0 +1,15 @@
+{
+  "name": "lsp-backend",
+  "version": "1.0.0",
+  "description": "lsp support for AlgoGPT Frontend",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1",
+    "start": "tsx ./direct.ts"
+  },
+  "dependencies": {
+    "pyright": "^1.1.387",
+    "tsx": "^4.19.2",
+    "vscode-ws-jsonrpc": "^3.3.2"
+  }
+}

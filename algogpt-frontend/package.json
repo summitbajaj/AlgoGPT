@@ -6,8 +6,7 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "lint": "next lint",
-    "start-pyright": "tsx src/app/server/direct.ts"
+    "lint": "next lint"
   },
   "dependencies": {
     "@codingame/monaco-vscode-python-default-extension": "^10.1.4",
