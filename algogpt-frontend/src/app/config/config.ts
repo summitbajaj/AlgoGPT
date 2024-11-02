@@ -11,7 +11,7 @@ import { MonacoLanguageClient } from 'monaco-languageclient';
 import { createUrl } from 'monaco-languageclient/tools';
 import { WrapperConfig } from 'monaco-editor-wrapper';
 import { toSocket, WebSocketMessageReader, WebSocketMessageWriter } from 'vscode-ws-jsonrpc';
-import { configureMonacoWorkers } from '../utils/utils';
+import { useConfigureMonacoWorkers } from '../utils/utils';
 
 export const createUserConfig = (workspaceRoot: string, code: string, codeUri: string): WrapperConfig => {
     const url = createUrl({
@@ -85,7 +85,7 @@ export const createUserConfig = (workspaceRoot: string, code: string, codeUri: s
                 }
             },
             useDiffEditor: false,
-            monacoWorkerFactory: configureMonacoWorkers,
+            monacoWorkerFactory: useConfigureMonacoWorkers,
             htmlContainer: document.getElementById('monaco-editor-root')!
         }
     };

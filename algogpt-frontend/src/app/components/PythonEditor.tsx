@@ -12,6 +12,14 @@ import { MonacoEditorLanguageClientWrapper, TextChanges } from 'monaco-editor-wr
 import { createUserConfig } from '../config/config';
 import badPyCode from '!!raw-loader!../resources/bad.py';
 
+export const PythonEditorComponent: React.FC = () => {
+  React.useEffect(() => {
+    runPythonReact();
+  }, []);
+
+  return null;
+};
+
 export const runPythonReact = async () => {
     const badPyUri = vscode.Uri.file('/workspace/bad.py');
     const fileSystemProvider = new RegisteredFileSystemProvider(false);

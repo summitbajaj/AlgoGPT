@@ -1,18 +1,21 @@
 "use client";
+import dynamic from 'next/dynamic';
 import { useEffect } from "react";
-import { runPythonReact } from "./components/PythonEditor";
+
+const PythonEditor = dynamic(
+  () => import('./components/PythonEditor').then(mod => ({ 
+    default: mod.PythonEditorComponent 
+  })),
+  { ssr: false }
+);
 
 export default function Home() {
   useEffect(() => {
-    // Create the container div programmatically
     const editorContainer = document.getElementById('editor-container');
     const monacoRoot = document.createElement('div');
     monacoRoot.id = 'monaco-editor-root';
     monacoRoot.style.height = '100%';
     editorContainer?.appendChild(monacoRoot);
-
-    // Initialize the editor
-    runPythonReact();
 
     return () => {
       monacoRoot.remove();
@@ -34,6 +37,7 @@ export default function Home() {
         </button>
       </div>
       <div id="editor-container" style={{ height: '80vh' }} />
+      <PythonEditor />
     </main>
   );
 }

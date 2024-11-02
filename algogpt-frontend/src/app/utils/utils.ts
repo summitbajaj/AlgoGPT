@@ -16,7 +16,7 @@ export const disableButton = (id: string, disabled: boolean) => {
     }
 };
 
-export const configureMonacoWorkers = (logger?: Logger) => {
+export const useConfigureMonacoWorkers = (logger?: Logger) => {
     useWorkerFactory({
         workerOverrides: {
             ignoreMapping: true,
