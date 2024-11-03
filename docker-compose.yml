@@ -1,0 +1,22 @@
+services:
+  lsp-backend:
+    build:
+      context: ./lsp-backend
+      dockerfile: Dockerfile
+    ports:
+      - "30001:30001"
+    environment:
+      - PORT=30001
+
+  algogpt-frontend:
+    build:
+      context: ./algogpt-frontend
+      dockerfile: Dockerfile
+    ports:
+      - "3000:3000"
+    environment:
+      - NODE_ENV=production
+      - PORT=3000
+      - HOSTNAME=0.0.0.0
+    depends_on:
+      - lsp-backend
