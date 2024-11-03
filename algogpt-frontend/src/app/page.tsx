@@ -36,7 +36,19 @@ export default function Home() {
           Dispose Editor
         </button>
       </div>
-      <div id="editor-container" style={{ height: '80vh' }} />
+
+      {/* Editor Container */}
+      <div style={{ height: '80vh', display: 'flex', flexDirection: 'column' }}>
+        <div id="editor-container" style={{ flex: 1 }} />
+
+        {/* Run Code Button at the Bottom */}
+        <div className="flex justify-center mt-4">
+          <button id="button-run" className="px-4 py-2 bg-green-500 text-white rounded">
+            Run Code
+          </button>
+        </div>
+      </div>
+
       <PythonEditor />
     </main>
   );
