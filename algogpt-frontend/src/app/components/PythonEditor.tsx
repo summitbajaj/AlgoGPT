@@ -10,7 +10,7 @@ import ReactDOM from 'react-dom/client';
 import { MonacoEditorReactComp } from '@typefox/monaco-editor-react';
 import { MonacoEditorLanguageClientWrapper, TextChanges } from 'monaco-editor-wrapper';
 import { createUserConfig } from '../config/config';
-import badPyCode from '!!raw-loader!../resources/bad.py';
+import onLoadPyCode from '!!raw-loader!../resources/onLoad.py';
 
 export const PythonEditorComponent: React.FC = () => {
   React.useEffect(() => {
@@ -21,15 +21,15 @@ export const PythonEditorComponent: React.FC = () => {
 };
 
 export const runPythonReact = async () => {
-    const badPyUri = vscode.Uri.file('/workspace/bad.py');
+    const onLoadPyUri = vscode.Uri.file('/workspace/bad.py');
     const fileSystemProvider = new RegisteredFileSystemProvider(false);
-    fileSystemProvider.registerFile(new RegisteredMemoryFile(badPyUri, badPyCode));
+    fileSystemProvider.registerFile(new RegisteredMemoryFile(onLoadPyUri, onLoadPyCode));
     registerFileSystemOverlay(1, fileSystemProvider);
 
-    const onTextChanged = (textChanges: TextChanges) => {
-        console.log(`Dirty? ${textChanges.isDirty}\ntext: ${textChanges.text}\ntextOriginal: ${textChanges.textOriginal}`);
-    };
-    const wrapperConfig = createUserConfig('/workspace', badPyCode, '/workspace/bad.py');
+    // const onTextChanged = (textChanges: TextChanges) => {
+    //     console.log(`Dirty? ${textChanges.isDirty}\ntext: ${textChanges.text}\ntextOriginal: ${textChanges.textOriginal}`);
+    // };
+    const wrapperConfig = createUserConfig('/workspace', onLoadPyCode, '/workspace/bad.py');
     const root = ReactDOM.createRoot(wrapperConfig.editorAppConfig.htmlContainer);
 
     try {
@@ -40,7 +40,7 @@ export const runPythonReact = async () => {
                         <MonacoEditorReactComp
                             wrapperConfig={wrapperConfig}
                             style={{ 'height': '100%' }}
-                            onTextChanged={onTextChanged}
+                            // onTextChanged={onTextChanged}
                             onLoad={(wrapper: MonacoEditorLanguageClientWrapper) => {
                                 console.log(`Loaded ${wrapper.reportStatus().join('\n').toString()}`);
                             }}
