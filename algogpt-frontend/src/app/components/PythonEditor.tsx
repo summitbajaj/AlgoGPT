@@ -6,6 +6,7 @@ import { MonacoEditorReactComp } from '@typefox/monaco-editor-react';
 import { MonacoEditorLanguageClientWrapper, TextChanges } from 'monaco-editor-wrapper';
 import { createUserConfig } from '../config/config';
 import onLoadPyCode from '!!raw-loader!../resources/onLoad.py';
+import { runCode } from '../utils/api';
 
 export const PythonEditorComponent: React.FC = () => {
     const [code, setCode] = useState(onLoadPyCode);
@@ -13,10 +14,11 @@ export const PythonEditorComponent: React.FC = () => {
     useEffect(() => {
         runPythonReact(setCode);
         
-        // Add event listener for the "Run" button to log the code
+        // Add event listener for the "Run" button to send code to the API
         const runButton = document.querySelector('#button-run');
-        const handleClick = () => {
-            console.log("Current Code:", code);
+        const handleClick = async () => {
+            const response = await runCode(code);
+            console.log("API Response:", response);
         };
         runButton?.addEventListener('click', handleClick);
 
