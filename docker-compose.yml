@@ -20,3 +20,12 @@ services:
       - HOSTNAME=0.0.0.0
     depends_on:
       - lsp-backend
+
+  code-runner:
+    build:
+      context: ./code-runner
+      dockerfile: Dockerfile
+    ports:
+      - "5001:5000"
+    environment:
+      - FLASK_APP=codeExceution.py

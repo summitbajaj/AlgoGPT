@@ -72,9 +72,23 @@ export const createUserConfig = (workspaceRoot: string, code: string, codeUri: s
                     'workbench.colorTheme': 'Default Dark Modern',
                     'editor.guides.bracketPairsHorizontal': 'active',
                     'editor.wordBasedSuggestions': 'off',
-                    'editor.experimental.asyncTokenization': true
+                    // extra stuff that were added
+                    'editor.experimental.asyncTokenization': true,
+                    'python.analysis.diagnosticMode': 'workspace',
+                    'python.analysis.typeCheckingMode': 'basic',
+                    'python.analysis.diagnosticSeverityOverrides': {
+                        'reportMissingImports': 'none',
+                        'reportMissingModuleSource': 'none'
+                    },
+                    // Enable these features for better IntelliSense
+                    'editor.suggestSelection': 'first',
+                    'editor.suggest.showMethods': true,
+                    'editor.suggest.preview': true,
+                    'editor.acceptSuggestionOnEnter': 'on',
+                    'editor.suggestOnTriggerCharacters': true,
+                    'editor.hover.enabled': true
                 })
-            }
+            } 
         },
         editorAppConfig: {
             $type: 'extended',
