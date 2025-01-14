@@ -1,22 +1,26 @@
 FROM node:18-alpine
 
-# Set the working directory
+# 1) Install system Python & pip
+RUN apk add --update --no-cache python3 py3-pip
+
+# 2) Create a working directory
 WORKDIR /app
 
-# Copy package.json
+# 3) Copy and install Node dependencies (unchanged from your original)
 COPY package*.json ./
-
-# Install dependencies
 RUN npm install
 
-# Copy application source code
+# 4) Copy the rest of your code
 COPY . .
 
-# Expose the application port
+# 5) Create a Python virtual environment and install libraries
+#    We install inside /venv so it doesn't collide with system packages
+RUN python3 -m venv /venv \
+    && /venv/bin/pip install --no-cache-dir pandas numpy
+
+# 6) Make sure subsequent commands (and Pyright) use the venv Python
+ENV PATH="/venv/bin:$PATH"
+
+# 7) Expose port and start
 EXPOSE 30001
-
-# Set environment variables
-ENV PORT 30001
-
-# Start the application
 CMD ["npm", "start"]
