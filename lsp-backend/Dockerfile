@@ -15,8 +15,9 @@ COPY . .
 
 # 5) Create a Python virtual environment and install libraries
 #    We install inside /venv so it doesn't collide with system packages
+COPY requirements.txt .
 RUN python3 -m venv /venv \
-    && /venv/bin/pip install --no-cache-dir pandas numpy
+    && /venv/bin/pip install --no-cache-dir -r requirements.txt
 
 # 6) Make sure subsequent commands (and Pyright) use the venv Python
 ENV PATH="/venv/bin:$PATH"
