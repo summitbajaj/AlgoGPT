@@ -29,11 +29,8 @@ export default function Home() {
           <input type="checkbox" id="checkbox-strictmode" />
           Enable Strict Mode
         </label>
-        <button id="button-start" className="px-4 py-2 bg-blue-500 text-white rounded">
-          Start Editor
-        </button>
         <button id="button-dispose" className="px-4 py-2 bg-red-500 text-white rounded">
-          Dispose Editor
+          Reset Editor
         </button>
       </div>
 

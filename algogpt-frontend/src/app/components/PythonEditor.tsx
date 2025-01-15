@@ -10,10 +10,12 @@ import { runCode } from '../utils/api';
 
 export const PythonEditorComponent: React.FC = () => {
     const [code, setCode] = useState(onLoadPyCode);
+    const [editorRoot, setEditorRoot] = useState<ReactDOM.Root | null>(null);
 
     useEffect(() => {
-        runPythonReact(setCode);
-        
+        // Initialize editor automatically
+        initializeEditor();
+
         // Add event listener for the "Run" button to send code to the API
         const runButton = document.querySelector('#button-run');
         const handleClick = async () => {
@@ -25,30 +27,27 @@ export const PythonEditorComponent: React.FC = () => {
         // Clean up event listener on component unmount
         return () => {
             runButton?.removeEventListener('click', handleClick);
+            editorRoot?.unmount();
         };
-    }, [code]);
+    }, []);
 
-    return null;
-};
+    const initializeEditor = async () => {
+        const onLoadPyUri = vscode.Uri.file('/workspace/bad.py');
+        const fileSystemProvider = new RegisteredFileSystemProvider(false);
+        fileSystemProvider.registerFile(new RegisteredMemoryFile(onLoadPyUri, onLoadPyCode));
+        registerFileSystemOverlay(1, fileSystemProvider);
 
-export const runPythonReact = async (setCode: (code: string) => void) => {
-    const onLoadPyUri = vscode.Uri.file('/workspace/bad.py');
-    const fileSystemProvider = new RegisteredFileSystemProvider(false);
-    fileSystemProvider.registerFile(new RegisteredMemoryFile(onLoadPyUri, onLoadPyCode));
-    registerFileSystemOverlay(1, fileSystemProvider);
+        const onTextChanged = (textChanges: TextChanges) => {
+            if (textChanges.text) {
+                setCode(textChanges.text);
+            }
+        };
 
-    const onTextChanged = (textChanges: TextChanges) => {
-        if (textChanges.text){
-            setCode(textChanges.text);
-        }
-        // console.log(`Dirty? ${textChanges.isDirty}\ntext: ${textChanges.text}\ntextOriginal: ${textChanges.textOriginal}`);
-    };
+        const wrapperConfig = createUserConfig('/workspace', onLoadPyCode, '/workspace/bad.py');
+        const root = ReactDOM.createRoot(wrapperConfig.editorAppConfig.htmlContainer);
+        setEditorRoot(root);
 
-    const wrapperConfig = createUserConfig('/workspace', onLoadPyCode, '/workspace/bad.py');
-    const root = ReactDOM.createRoot(wrapperConfig.editorAppConfig.htmlContainer);
-
-    try {
-        document.querySelector('#button-start')?.addEventListener('click', async () => {
+        try {
             const App = () => {
                 return (
                     <div style={{ height: '80vh', padding: '5px' }}>
@@ -67,7 +66,8 @@ export const runPythonReact = async (setCode: (code: string) => void) => {
                 );
             };
 
-            const strictMode = (document.getElementById('checkbox-strictmode')! as HTMLInputElement).checked;
+            // Get strict mode preference (you might want to make this a prop or config)
+            const strictMode = (document.getElementById('checkbox-strictmode') as HTMLInputElement)?.checked ?? false;
 
             if (strictMode) {
                 root.render(
@@ -78,11 +78,10 @@ export const runPythonReact = async (setCode: (code: string) => void) => {
             } else {
                 root.render(<App />);
             }
-        });
-        document.querySelector('#button-dispose')?.addEventListener('click', () => {
-            root.render([]);
-        });
-    } catch (e) {
-        console.error(e);
-    }
+        } catch (e) {
+            console.error(e);
+        }
+    };
+
+    return null;
 };
