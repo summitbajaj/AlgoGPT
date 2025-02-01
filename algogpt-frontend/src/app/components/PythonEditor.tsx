@@ -1,6 +1,6 @@
 import * as vscode from 'vscode';
 import { RegisteredFileSystemProvider, registerFileSystemOverlay, RegisteredMemoryFile } from '@codingame/monaco-vscode-files-service-override';
-import React, { StrictMode, useState, useEffect } from 'react';
+import React, { StrictMode, useState, useEffect, useRef } from 'react';
 import ReactDOM from 'react-dom/client';
 import { MonacoEditorReactComp } from '@typefox/monaco-editor-react';
 import { MonacoEditorLanguageClientWrapper, TextChanges, WrapperConfig } from 'monaco-editor-wrapper';
@@ -12,6 +12,12 @@ export const PythonEditorComponent: React.FC = () => {
     const [code, setCode] = useState(onLoadPyCode);
     const [editorRoot, setEditorRoot] = useState<ReactDOM.Root | null>(null);
     const [lspConnected, setLspConnected] = useState(true);
+    const codeRef = useRef(code); // to always hold the latest code
+
+    // Keep the ref updated with the latest code
+    useEffect(() => {
+        codeRef.current = code;
+    }, [code]);
 
     useEffect(() => {
         // Initialize editor automatically
@@ -26,7 +32,7 @@ export const PythonEditorComponent: React.FC = () => {
         const runButton = document.querySelector('#button-run');
         const handleClick = async () => {
             try {
-                const response = await runCode(code);
+                const response = await runCode(codeRef.current);
                 console.log("API Response:", response);
             } catch (error) {
                 console.error("Failed to run code:", error);
