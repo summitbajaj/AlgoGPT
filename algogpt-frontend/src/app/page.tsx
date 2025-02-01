@@ -23,7 +23,7 @@ export default function Home() {
   }, []);
 
   return (
-    <main className="flex min-h-screen flex-col p-4 bg-gray-900 text-white">
+    <main className="app-main flex min-h-screen flex-col p-4 bg-gray-900 text-white">
       <div className="flex gap-4 mb-4">
         <label className="flex items-center gap-2">
           <input type="checkbox" id="checkbox-strictmode" />
