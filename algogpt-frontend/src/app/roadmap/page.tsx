@@ -35,7 +35,6 @@ export default function RoadmapPage() {
     ctx.strokeStyle = "#ffffff"
     ctx.lineWidth = 2
 
-    // Define connections
     const connections = [
       ["arrays", "twopointers"],
       ["arrays", "stack"],
@@ -60,7 +59,6 @@ export default function RoadmapPage() {
       ["bit", "math"],
     ]
 
-    // Draw connections
     connections.forEach(([from, to]) => {
       const fromTopic = topics.find((t) => t.id === from)
       const toTopic = topics.find((t) => t.id === to)
@@ -81,7 +79,6 @@ export default function RoadmapPage() {
       const x = topic.x - width / 2
       const y = topic.y - height / 2
 
-      // Rounded rectangle
       ctx.beginPath()
       ctx.roundRect(x, y, width, height, 5)
       ctx.fill()
@@ -109,14 +106,9 @@ export default function RoadmapPage() {
     // Initial draw
     drawRoadmap(ctx)
 
-    // Add hover effect
-    const handleMouseMove = (e: MouseEvent) => {
-      const rect = canvas.getBoundingClientRect()
-      const x = e.clientX - rect.left
-      const y = e.clientY - rect.top
+    // Add hover effect (for now, just redraw)
+    const handleMouseMove = () => {
       canvas.style.cursor = "default"
-
-      // Redraw and check for hover
       drawRoadmap(ctx)
     }
 
@@ -133,4 +125,3 @@ export default function RoadmapPage() {
     </div>
   )
 }
-

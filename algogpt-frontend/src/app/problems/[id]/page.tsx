@@ -6,6 +6,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Card } from "@/components/ui/card"
 import { PlayIcon, CheckIcon } from "lucide-react"
 import Editor from "@monaco-editor/react"
+import { PythonEditorComponent } from "@/app/components/PythonEditor"
 
 const problem = {
   id: 1790,
@@ -66,10 +67,12 @@ export default function ProblemPage() {
           <h1 className="text-xl font-bold">
             {problem.id}. {problem.title}
           </h1>
-          <span className="px-2 py-1 text-sm rounded bg-green-200 text-green-800">{problem.difficulty}</span>
+          <span className="px-2 py-1 text-sm rounded bg-green-200 text-green-800">
+            {problem.difficulty}
+          </span>
         </div>
 
-        <Card className="flex-grow">
+        <Card className="flex-grow overflow-auto">
           <Tabs value={activeTab} onValueChange={setActiveTab}>
             <TabsList>
               <TabsTrigger value="description">Description</TabsTrigger>
@@ -108,6 +111,7 @@ export default function ProblemPage() {
 
       {/* Right Panel */}
       <div className="flex flex-col h-full">
+        {/* Header with language select and run/submit buttons */}
         <div className="flex items-center justify-between mb-4">
           <select
             value={language}
@@ -118,7 +122,8 @@ export default function ProblemPage() {
             <option value="javascript">JavaScript</option>
           </select>
           <div className="flex gap-2">
-            <Button size="sm">
+            {/* The run button is given an id so the PythonEditorComponent can attach its listener */}
+            <Button id="button-run" size="sm">
               <PlayIcon className="w-4 h-4 mr-2" />
               Run
             </Button>
@@ -129,22 +134,32 @@ export default function ProblemPage() {
           </div>
         </div>
 
-        <Card className="flex-grow">
-          <Editor
-            height="60vh"
-            defaultLanguage={language}
-            value={code}
-            onChange={(value: any) => setCode(value || "")}
-            theme="vs-dark"
-            options={{
-              minimap: { enabled: false },
-              fontSize: 14,
-              lineNumbers: "on",
-              automaticLayout: true,
-            }}
-          />
+        {/* Editor Card */}
+        <Card className="flex flex-col flex-grow overflow-hidden">
+          {language === "python" ? (
+            <>
+              {/* The container now uses flex-grow and min-h-0 to fill available space */}
+              <div id="monaco-editor-root" className="flex-grow min-h-0" />
+              <PythonEditorComponent />
+            </>
+          ) : (
+            <Editor
+              height="100%"
+              defaultLanguage={language}
+              value={code}
+              onChange={(value) => setCode(value || "")}
+              theme="vs-dark"
+              options={{
+                minimap: { enabled: false },
+                fontSize: 14,
+                lineNumbers: "on",
+                automaticLayout: true,
+              }}
+            />
+          )}
         </Card>
 
+        {/* Test Case Card */}
         <Card className="mt-4 p-4">
           <h3 className="font-medium mb-2">Test Case</h3>
           <div className="grid gap-2">
@@ -153,7 +168,9 @@ export default function ProblemPage() {
               <input
                 type="text"
                 value={testCase.s1}
-                onChange={(e) => setTestCase({ ...testCase, s1: e.target.value })}
+                onChange={(e) =>
+                  setTestCase({ ...testCase, s1: e.target.value })
+                }
                 className="ml-2 px-2 py-1 border rounded"
               />
             </div>
@@ -162,7 +179,9 @@ export default function ProblemPage() {
               <input
                 type="text"
                 value={testCase.s2}
-                onChange={(e) => setTestCase({ ...testCase, s2: e.target.value })}
+                onChange={(e) =>
+                  setTestCase({ ...testCase, s2: e.target.value })
+                }
                 className="ml-2 px-2 py-1 border rounded"
               />
             </div>
@@ -172,4 +191,3 @@ export default function ProblemPage() {
     </div>
   )
 }
-
