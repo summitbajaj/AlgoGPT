@@ -16,38 +16,60 @@ import { createUserConfig } from '../config/config';
 import onLoadPyCode from '!!raw-loader!../resources/onLoad.py';
 import { runCode } from '../utils/api';
 
-export const PythonEditorComponent: React.FC = () => {
+// Define a more specific interface instead of using `any`.
+interface ExecutionResult {
+  error?: string;
+  output?: string | null;
+  executionTime?: number | null;
+}
+
+interface PythonEditorProps {
+  onExecutionComplete?: (result: ExecutionResult) => void;
+}
+
+export const PythonEditorComponent: React.FC<PythonEditorProps> = ({
+  onExecutionComplete,
+}) => {
   const [code, setCode] = useState(onLoadPyCode);
   const [editorRoot, setEditorRoot] = useState<ReactDOM.Root | null>(null);
   const [lspConnected, setLspConnected] = useState(true);
   const codeRef = useRef(code);
 
-  // Always keep the latest code in the ref.
+  // Keep codeRef in sync with `code`
   useEffect(() => {
     codeRef.current = code;
   }, [code]);
 
+  // If you only want to run the editor initialization once, you can disable the
+  // react-hooks/exhaustive-deps rule here:
   useEffect(() => {
-    // Initialize the editor with LSP (or fallback to basic mode)
     initializeEditor().catch((err) => {
       console.error('Failed to initialize editor with LSP:', err);
       setLspConnected(false);
       initializeEditorWithoutLSP();
     });
 
-    // Attach event listener to the external Run button.
     const runButton = document.querySelector('#button-run');
     const handleClick = async () => {
       try {
+        // Run your code
         const response = await runCode(codeRef.current);
         console.log('API Response:', response);
+
+        // Pass the execution result back to the parent component
+        onExecutionComplete?.(response);
       } catch (error) {
         console.error('Failed to run code:', error);
+        onExecutionComplete?.({
+          error: error instanceof Error ? error.message : 'An error occurred',
+          output: null,
+          executionTime: null,
+        });
       }
     };
+
     runButton?.addEventListener('click', handleClick);
 
-    // Clean up on unmount.
     return () => {
       runButton?.removeEventListener('click', handleClick);
       editorRoot?.unmount();
@@ -55,22 +77,31 @@ export const PythonEditorComponent: React.FC = () => {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  const initializeEditorWithoutLSP = async () => {
-    const wrapperConfig = {
-      ...createUserConfig('/workspace', onLoadPyCode, '/workspace/bad.py'),
-      languageClientConfig: undefined, // Disable LSP
-    };
+  const initializeEditor = async () => {
+    try {
+      const onLoadPyUri = vscode.Uri.file('/workspace/bad.py');
+      const fileSystemProvider = new RegisteredFileSystemProvider(false);
+      fileSystemProvider.registerFile(
+        new RegisteredMemoryFile(onLoadPyUri, onLoadPyCode)
+      );
+      registerFileSystemOverlay(1, fileSystemProvider);
 
-    renderEditor(wrapperConfig);
+      const wrapperConfig = createUserConfig(
+        '/workspace',
+        onLoadPyCode,
+        '/workspace/bad.py'
+      );
+      renderEditor(wrapperConfig);
+    } catch (err) {
+      throw err;
+    }
   };
 
-  const initializeEditor = async () => {
-    const onLoadPyUri = vscode.Uri.file('/workspace/bad.py');
-    const fileSystemProvider = new RegisteredFileSystemProvider(false);
-    fileSystemProvider.registerFile(new RegisteredMemoryFile(onLoadPyUri, onLoadPyCode));
-    registerFileSystemOverlay(1, fileSystemProvider);
-
-    const wrapperConfig = createUserConfig('/workspace', onLoadPyCode, '/workspace/bad.py');
+  const initializeEditorWithoutLSP = async () => {
+    const wrapperConfig: WrapperConfig = {
+      ...createUserConfig('/workspace', onLoadPyCode, '/workspace/bad.py'),
+      languageClientConfigs: undefined,
+    };
     renderEditor(wrapperConfig);
   };
 
@@ -84,9 +115,8 @@ export const PythonEditorComponent: React.FC = () => {
     const root = ReactDOM.createRoot(container);
     setEditorRoot(root);
 
-    const App = () => {
+    const App: React.FC = () => {
       return (
-        // Use 100% height so the editor fills its container.
         <div style={{ height: '100%', padding: '5px' }}>
           {!lspConnected && (
             <div className="bg-yellow-500 text-black p-2 mb-2 rounded">
@@ -112,8 +142,11 @@ export const PythonEditorComponent: React.FC = () => {
       );
     };
 
-    // Optionally wrap with StrictMode.
-    const strictMode = (document.getElementById('checkbox-strictmode') as HTMLInputElement)?.checked ?? false;
+    // Check whether Strict Mode is enabled via #checkbox-strictmode
+    const strictMode =
+      (document.getElementById('checkbox-strictmode') as HTMLInputElement)
+        ?.checked ?? false;
+
     if (strictMode) {
       root.render(
         <StrictMode>
@@ -127,3 +160,4 @@ export const PythonEditorComponent: React.FC = () => {
 
   return null;
 };
+
