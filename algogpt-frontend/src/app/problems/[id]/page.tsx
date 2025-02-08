@@ -102,7 +102,7 @@ Execution Time: ${result.executionTime || 'N/A'}`
                 {problem.examples.map((example, index) => (
                   <div key={index}>
                     <h3>Example {index + 1}:</h3>
-                    <pre className="bg-gray-100 dark:bg-gray-800 p-2 rounded">
+                    <pre className="bg-white text-black p-2 rounded border border-gray-300 overflow-auto text-sm">
                       {/* Escape quotes using &quot; */}
                       <div>Input: s1 = &quot;{example.input.s1}&quot;, s2 = &quot;{example.input.s2}&quot;</div>
                       <div>Output: {example.output}</div>
