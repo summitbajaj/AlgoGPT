@@ -28,7 +28,7 @@ export default function RootLayout({
                 <Link href="/problems" className="transition-colors hover:text-foreground/80">
                   Problems
                 </Link>
-                <Link href="/problems/roadmap" className="transition-colors hover:text-foreground/80">
+                <Link href="/roadmap" className="transition-colors hover:text-foreground/80">
                   Roadmap
                 </Link>
                 <Link href="/chat" className="transition-colors hover:text-foreground/80">
