@@ -27,11 +27,11 @@ export default function RoadmapPage() {
       { id: "math", text: "Math & Geometry", x: 450, y: 750, color: "#3F51B5" },
     ]
 
-    // Clear canvas
+    // Clear canvas with a dark background
     ctx.fillStyle = "#1a1a1a"
     ctx.fillRect(0, 0, ctx.canvas.width, ctx.canvas.height)
 
-    // Draw connections
+    // Draw connections between topics
     ctx.strokeStyle = "#ffffff"
     ctx.lineWidth = 2
 
@@ -70,22 +70,40 @@ export default function RoadmapPage() {
       }
     })
 
-    // Draw topics
+    // Set the font BEFORE measuring text
+    ctx.font = "14px Arial"
+
+    // Draw each topic's box and label
     topics.forEach((topic) => {
-      // Draw box
-      ctx.fillStyle = topic.color
-      const width = ctx.measureText(topic.text).width + 20
+      const padding = 20
+      const textWidth = ctx.measureText(topic.text).width
+      const width = textWidth + padding
       const height = 30
       const x = topic.x - width / 2
       const y = topic.y - height / 2
 
+      // Draw rounded rectangle for the topic
+      ctx.fillStyle = topic.color
       ctx.beginPath()
-      ctx.roundRect(x, y, width, height, 5)
+      if (typeof ctx.roundRect === "function") {
+        ctx.roundRect(x, y, width, height, 5)
+      } else {
+        // Fallback for browsers that don't support roundRect
+        const r = 5
+        ctx.moveTo(x + r, y)
+        ctx.lineTo(x + width - r, y)
+        ctx.quadraticCurveTo(x + width, y, x + width, y + r)
+        ctx.lineTo(x + width, y + height - r)
+        ctx.quadraticCurveTo(x + width, y + height, x + width - r, y + height)
+        ctx.lineTo(x + r, y + height)
+        ctx.quadraticCurveTo(x, y + height, x, y + height - r)
+        ctx.lineTo(x, y + r)
+        ctx.quadraticCurveTo(x, y, x + r, y)
+      }
       ctx.fill()
 
-      // Draw text
+      // Draw the topic's text
       ctx.fillStyle = "#ffffff"
-      ctx.font = "14px Arial"
       ctx.textAlign = "center"
       ctx.textBaseline = "middle"
       ctx.fillText(topic.text, topic.x, topic.y)
@@ -99,19 +117,18 @@ export default function RoadmapPage() {
     const ctx = canvas.getContext("2d")
     if (!ctx) return
 
-    // Set canvas size
+    // Set canvas dimensions
     canvas.width = 800
     canvas.height = 800
 
     // Initial draw
     drawRoadmap(ctx)
 
-    // Add hover effect (for now, just redraw)
+    // Handle mouse move
     const handleMouseMove = () => {
       canvas.style.cursor = "default"
       drawRoadmap(ctx)
     }
-
     canvas.addEventListener("mousemove", handleMouseMove)
     return () => canvas.removeEventListener("mousemove", handleMouseMove)
   }, [drawRoadmap])
@@ -120,7 +137,11 @@ export default function RoadmapPage() {
     <div className="flex flex-col items-center p-4">
       <h1 className="text-2xl font-bold mb-4">Learning Roadmap</h1>
       <div className="border border-gray-700 rounded-lg overflow-hidden">
-        <canvas ref={canvasRef} className="bg-[#1a1a1a]" />
+        <canvas 
+          ref={canvasRef} 
+          className="bg-[#1a1a1a]"
+          style={{ width: '800px', height: '800px' }}
+        />
       </div>
     </div>
   )
