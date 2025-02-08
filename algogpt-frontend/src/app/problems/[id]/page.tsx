@@ -57,12 +57,12 @@ export default function ProblemPage() {
     // Update the output for all test cases with the actual execution result
     const newOutput = problem.examples.map((example, index) => (
       `Test Case ${index + 1}:
-Input: s1 = "${example.input.s1}", s2 = "${example.input.s2}"
-Expected Output: ${example.output}
-Your Output: ${result.output || 'No output'}
-Execution Result: ${result.error ? 'Error' : 'Success'}
-${result.error ? `Error: ${result.error}` : ''}
-Execution Time: ${result.executionTime || 'N/A'}`
+      Input: s1 = "${example.input.s1}", s2 = "${example.input.s2}"
+      Expected Output: ${example.output}
+      Your Output: ${result.output || 'No output'}
+      Execution Result: ${result.error ? 'Error' : 'Success'}
+      ${result.error ? `Error: ${result.error}` : ''}
+      Execution Time: ${result.executionTime || 'N/A'}`
     ))
 
     setOutput(newOutput)
