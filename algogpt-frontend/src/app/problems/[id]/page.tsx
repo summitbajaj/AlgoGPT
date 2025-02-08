@@ -84,15 +84,15 @@ export default function ProblemPage() {
                 <p>{problem.description}</p>
 
                 <h3>Example 1:</h3>
-                <pre className="bg-gray-100 dark:bg-gray-800 p-2 rounded">
-                  <div>Input: {problem.examples[0].input}</div>
+                <pre className="bg-white text-black p-2 rounded border border-gray-300 overflow-auto text-sm">
+                <div>Input: {problem.examples[0].input}</div>
                   <div>Output: {problem.examples[0].output}</div>
                   <div>Explanation: {problem.examples[0].explanation}</div>
                 </pre>
 
                 <h3>Example 2:</h3>
-                <pre className="bg-gray-100 dark:bg-gray-800 p-2 rounded">
-                  <div>Input: {problem.examples[1].input}</div>
+                <pre className="bg-white text-black p-2 rounded border border-gray-300 overflow-auto text-sm">
+                <div>Input: {problem.examples[1].input}</div>
                   <div>Output: {problem.examples[1].output}</div>
                   <div>Explanation: {problem.examples[1].explanation}</div>
                 </pre>
