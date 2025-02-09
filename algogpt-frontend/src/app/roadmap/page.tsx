@@ -1,6 +1,6 @@
 "use client"
 
-import { useRef, useEffect, useCallback, useState } from "react"
+import { useRef, useEffect, useCallback, useState, useMemo } from "react"
 
 // Types for clarity
 interface Topic {
@@ -14,17 +14,11 @@ interface Topic {
 
 export default function InteractiveRoadmapPage() {
   const canvasRef = useRef<HTMLCanvasElement>(null)
-  
-  // State that holds the topic the user most recently clicked
   const [activeTopic, setActiveTopic] = useState<Topic | null>(null)
+  const topicBoxesRef = useRef<{ topic: Topic; x: number; y: number; width: number; height: number }[]>([])
 
-  // A place to store bounding boxes after we draw
-  const topicBoxesRef = useRef<
-    { topic: Topic; x: number; y: number; width: number; height: number }[]
-  >([])
-
-  // Define your topics (with example “questions” or details):
-  const topics: Topic[] = [
+  // Memoized topics array
+  const topics = useMemo(() => [
     {
       id: "arrays",
       text: "Arrays & Hashing",
@@ -41,22 +35,18 @@ export default function InteractiveRoadmapPage() {
       color: "#3F51B5",
       questions: ["Q1: Valid Palindrome", "Q2: 3Sum", "Q3: Container With Water"],
     },
-    // ... add more topics with their x,y and question arrays ...
-  ]
+  ], []) // Dependencies array is empty since these values are static
 
-  // Connections: which topics are linked by lines
-  const connections: [string, string][] = [
+  // Memoized connections array
+  const connections = useMemo(() => [
     ["arrays", "twopointers"],
-    // ... more connections ...
-  ]
+  ], [])
 
   // The actual draw function
   const drawRoadmap = useCallback((ctx: CanvasRenderingContext2D) => {
-    // 1) Fill background
     ctx.fillStyle = "#1a1a1a"
     ctx.fillRect(0, 0, ctx.canvas.width, ctx.canvas.height)
 
-    // 2) Draw lines between topics
     ctx.strokeStyle = "#ffffff"
     ctx.lineWidth = 2
     connections.forEach(([fromId, toId]) => {
@@ -70,20 +60,11 @@ export default function InteractiveRoadmapPage() {
       }
     })
 
-    // 3) Draw each topic "node"
     ctx.font = "14px Arial"
     ctx.textAlign = "center"
     ctx.textBaseline = "middle"
 
-    // We'll refill topicBoxesRef from scratch each time
-    const newTopicBoxes: {
-      topic: Topic
-      x: number
-      y: number
-      width: number
-      height: number
-    }[] = []
-
+    const newTopicBoxes: { topic: Topic; x: number; y: number; width: number; height: number }[] = []
     topics.forEach((topic) => {
       const padding = 20
       const textWidth = ctx.measureText(topic.text).width
@@ -92,7 +73,6 @@ export default function InteractiveRoadmapPage() {
       const x = topic.x - width / 2
       const y = topic.y - height / 2
 
-      // Rounded corners if supported, else fillRect
       ctx.fillStyle = topic.color
       ctx.beginPath()
       if (typeof ctx.roundRect === "function") {
@@ -102,16 +82,14 @@ export default function InteractiveRoadmapPage() {
       }
       ctx.fill()
 
-      // Draw text in the center
       ctx.fillStyle = "#ffffff"
       ctx.fillText(topic.text, topic.x, topic.y)
 
-      // Save the bounding box so we can detect clicks
       newTopicBoxes.push({ topic, x, y, width, height })
     })
 
     topicBoxesRef.current = newTopicBoxes
-  }, [connections, topics])
+  }, [topics, connections]) // Now only depends on memoized values
 
   useEffect(() => {
     const canvas = canvasRef.current
@@ -120,35 +98,22 @@ export default function InteractiveRoadmapPage() {
     const ctx = canvas.getContext("2d")
     if (!ctx) return
 
-    // Set canvas size
     canvas.width = 600
     canvas.height = 400
-
-    // Initial draw
     drawRoadmap(ctx)
 
-    // On click, figure out if we clicked inside a bounding box
     const handleClick = (evt: MouseEvent) => {
       if (!canvas) return
       const rect = canvas.getBoundingClientRect()
-      // Mouse position relative to canvas
       const mouseX = evt.clientX - rect.left
       const mouseY = evt.clientY - rect.top
 
-      // Check each bounding box for a hit
-      for (let box of topicBoxesRef.current) {
-        if (
-          mouseX >= box.x &&
-          mouseX <= box.x + box.width &&
-          mouseY >= box.y &&
-          mouseY <= box.y + box.height
-        ) {
-          // We clicked this topic
+      for (const box of topicBoxesRef.current) {
+        if (mouseX >= box.x && mouseX <= box.x + box.width && mouseY >= box.y && mouseY <= box.y + box.height) {
           setActiveTopic(box.topic)
           return
         }
       }
-      // If we didn't hit any topics, clear active
       setActiveTopic(null)
     }
 
@@ -158,7 +123,6 @@ export default function InteractiveRoadmapPage() {
 
   return (
     <div className="flex flex-row">
-      {/* Left side: the canvas */}
       <div className="p-4">
         <canvas 
           ref={canvasRef} 
@@ -167,7 +131,6 @@ export default function InteractiveRoadmapPage() {
         />
       </div>
 
-      {/* Right side: details panel (for the clicked topic) */}
       <div className="p-4 w-64 border-l border-gray-700">
         {activeTopic ? (
           <div>
