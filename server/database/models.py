@@ -1,6 +1,6 @@
 from sqlalchemy import Column, Integer, String, Text, Enum, ForeignKey, Table
 from sqlalchemy.orm import relationship
-from server.database.models import Base
+from .base import Base
 import enum
 
 # ----- 1) DIFFICULTY ENUM ------------------------------------------------
