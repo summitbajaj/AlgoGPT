@@ -1,8 +1,13 @@
-import requests
 from fastapi import FastAPI, Depends
 from sqlalchemy.orm import Session
-from server.database.database import SessionLocal
-from server.database.models import Problem, TestCase, Example, Topic
+import requests
+from database.database import SessionLocal
+from database.models import Problem, TestCase, Example, Topic
+from dotenv import load_dotenv
+import os
+
+# Load environment variables from .env file
+load_dotenv()
 
 app = FastAPI()
 
@@ -76,4 +81,4 @@ def execute_code(request: dict):
     execution_request = {"code": user_code}
 
     response = requests.post(flask_url, json=execution_request)
-    return response.json()  # Return execution results to frontend
+    return response.json()
