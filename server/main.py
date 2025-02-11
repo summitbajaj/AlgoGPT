@@ -65,6 +65,7 @@ def get_problem(problem_id: int, db: Session = Depends(get_db)):
             {"input": ex.input_data, "output": ex.output_data, "explanation": ex.explanation}
             for ex in problem.examples
         ],
+        "starter_code": problem.starter_code,
     }
 
 # -------------------------------
