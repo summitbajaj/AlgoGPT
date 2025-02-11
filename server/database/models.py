@@ -1,6 +1,6 @@
 from sqlalchemy import Column, Integer, String, Text, Enum, ForeignKey, Table
 from sqlalchemy.orm import relationship
-from .base import Base
+from base import Base
 import enum
 
 # ----- 1) DIFFICULTY ENUM ------------------------------------------------
@@ -37,6 +37,7 @@ class Problem(Base):
     description = Column(Text, nullable=False)
     difficulty = Column(Enum(DifficultyLevel), nullable=False)
     constraints = Column(Text, nullable=True)
+    starter_code = Column(Text, nullable=True)
 
     # Relationship to user-visible Examples
     examples = relationship("Example", back_populates="problem")
