@@ -20,7 +20,6 @@ app.add_middleware(
     allow_methods=["*"],  # Allow all HTTP methods (GET, POST, etc.)
     allow_headers=["*"],  # Allow all headers
 )
-
 # Dependency to get a database session
 def get_db():
     db = SessionLocal()
@@ -54,7 +53,7 @@ def get_problem(problem_id: int, db: Session = Depends(get_db)):
     problem = db.query(Problem).filter(Problem.id == problem_id).first()
     if not problem:
         return {"error": "Problem not found"}
-    
+
     return {
         "id": problem.id,
         "title": problem.title,
