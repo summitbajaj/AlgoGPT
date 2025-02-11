@@ -1,89 +1,190 @@
-"use client"
+// page.tsx
+"use client";
 
-import { useState } from "react"
-import { Button } from "@/components/ui/button"
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
-import { Card } from "@/components/ui/card"
-import { PlayIcon, CheckIcon, Maximize2Icon } from "lucide-react"
-import { PythonEditorComponent } from "@/app/components/PythonEditor"
+import React, { useState, useEffect } from "react";
+import { Button } from "@/components/ui/button";
+import {
+  Tabs,
+  TabsContent,
+  TabsList,
+  TabsTrigger,
+} from "@/components/ui/tabs";
+import { Card } from "@/components/ui/card";
+import { PlayIcon, CheckIcon, Maximize2Icon } from "lucide-react";
+import { PythonEditorComponent } from "@/app/components/PythonEditor";
+import { useParams } from "next/navigation";
+import ReactMarkdown from 'react-markdown';
+import remarkGfm from 'remark-gfm';
+import remarkMath from 'remark-math';
+import rehypeKatex from 'rehype-katex';
+import 'katex/dist/katex.min.css';
 
-// Define a more specific interface instead of `any`.
+// Type Definitions
+interface Example {
+  input: string;
+  output: string;
+  explanation?: string;
+}
+
+interface Problem {
+  id: number;
+  title: string;
+  description: string;
+  difficulty: string;
+  constraints: string;
+  examples: Example[];
+  topics: string[];
+  starterCode?: string;
+}
+
 interface ExecutionResult {
   error?: string;
   output?: string | null;
   executionTime?: number | null;
 }
 
-const problem = {
-  id: 1790,
-  title: "Check if One String Swap Can Make Strings Equal",
-  difficulty: "Easy",
-  description: `You are given two strings s1 and s2 of equal length. A string swap is an operation where you choose two indices in a string (not necessarily different) and swap the characters at these indices.
+// Helper functions
+const parseConstraints = (constraintsStr: string): string[] => {
+  if (!constraintsStr) return [];
+  return constraintsStr
+    .split(/[\n,]/)
+    .map((s) => s.trim().replace(/\s+/g, " "))
+    .filter((s) => s.length > 0);
+};
 
-Return true if it is possible to make both strings equal by performing at most one string swap on exactly one of the strings. Otherwise, return false.`,
-  examples: [
-    {
-      input: { s1: "bank", s2: "kanb" },
-      output: "true",
-      explanation: 'For example, swap the first character with the last character of s2 to make "bank".',
-    },
-    {
-      input: { s1: "attack", s2: "defend" },
-      output: "false",
-      explanation: "It is impossible to make them equal with one string swap.",
-    },
-  ],
-  constraints: [
-    "1 <= s1.length, s2.length <= 100",
-    "s1.length == s2.length",
-    "s1 and s2 consist of only lowercase English letters.",
-  ],
-  starterCode: `class Solution:
-    def areAlmostEqual(self, s1: str, s2: str) -> bool:
-        # Write your code here
-        pass`,
-}
+const processConstraintText = (text: string) => {
+  // Replace 10^n with proper math notation
+  return text.replace(/(\d+)\^(\d+)/g, '$$$1^{$2}$$');
+};
+
+const processDescriptionText = (text: string) => {
+  return text
+    // Add spaces around text between backticks if missing
+    .replace(/(\S)`([^`]+)`(\S)/g, '$1 `$2` $3');
+};
+
+// Custom markdown components
+const MarkdownComponents = {
+  p: ({node, ...props}: any) => (
+    <p className="mb-4 leading-7" {...props} />
+  ),
+  pre: ({node, ...props}: any) => (
+    <pre className="bg-slate-950 text-slate-50 p-4 rounded-lg overflow-auto my-4" {...props} />
+  ),
+  code: ({node, inline, ...props}: any) => (
+    inline ? 
+      <code className="bg-gray-200 dark:bg-gray-800 px-1.5 py-0.5 rounded text-sm font-mono" {...props} /> :
+      <code {...props} />
+  ),
+  ul: ({node, ...props}: any) => (
+    <ul className="list-disc pl-6 mb-4 space-y-2" {...props} />
+  ),
+  ol: ({node, ...props}: any) => (
+    <ol className="list-decimal pl-6 mb-4 space-y-2" {...props} />
+  ),
+  li: ({node, ...props}: any) => (
+    <li className="mb-1" {...props} />
+  ),
+  blockquote: ({node, ...props}: any) => (
+    <blockquote className="border-l-4 border-slate-300 dark:border-slate-700 pl-4 my-4 italic" {...props} />
+  ),
+  h1: ({node, ...props}: any) => (
+    <h1 className="text-3xl font-bold mb-4 mt-6" {...props} />
+  ),
+  h2: ({node, ...props}: any) => (
+    <h2 className="text-2xl font-bold mb-3 mt-5" {...props} />
+  ),
+  h3: ({node, ...props}: any) => (
+    <h3 className="text-xl font-bold mb-2 mt-4" {...props} />
+  ),
+};
 
 export default function ProblemPage() {
-  const [activeTab, setActiveTab] = useState("description")
-  const [activeTestCase, setActiveTestCase] = useState(0)
-  const [output, setOutput] = useState(Array(problem.examples.length).fill(""))
-  const [isRunning, setIsRunning] = useState(false)
+  const params = useParams() as { id: string };
+  const [problem, setProblem] = useState<Problem | null>(null);
+  const [activeTab, setActiveTab] = useState<string>("description");
+  const [activeTestCase, setActiveTestCase] = useState<number>(0);
+  const [output, setOutput] = useState<string[]>([]);
+  const [isRunning, setIsRunning] = useState<boolean>(false);
+  const [isLoading, setIsLoading] = useState<boolean>(true);
 
-  // Handler for receiving code execution results
+  useEffect(() => {
+    const fetchProblem = async () => {
+      try {
+        const response = await fetch(`http://localhost:8000/problems/${params.id}`);
+        if (!response.ok) {
+          throw new Error("Problem not found");
+        }
+        const data = await response.json() as Problem;
+        setProblem(data);
+        setOutput(Array(data.examples.length).fill(""));
+      } catch (error) {
+        console.error("Error fetching problem:", error);
+        setProblem(null);
+      } finally {
+        setIsLoading(false);
+      }
+    };
+
+    if (params.id) {
+      fetchProblem();
+    }
+  }, [params.id]);
+
   const handleCodeExecution = (result: ExecutionResult) => {
-    console.log('Code execution result:', result)
+    if (!problem) return;
 
-    // Update the output for all test cases with the actual execution result
-    const newOutput = problem.examples.map((example, index) => (
-      `Test Case ${index + 1}:
-      Input: s1 = "${example.input.s1}", s2 = "${example.input.s2}"
-      Expected Output: ${example.output}
-      Your Output: ${result.output || 'No output'}
-      Execution Result: ${result.error ? 'Error' : 'Success'}
-      ${result.error ? `Error: ${result.error}` : ''}
-      Execution Time: ${result.executionTime || 'N/A'}`
-    ))
+    const newOutput = problem.examples.map((example, index) => {
+      return `Test Case ${index + 1}:
+Input: ${example.input}
+Expected Output: ${example.output}
+Your Output: ${result.output || "No output"}
+Execution Result: ${result.error ? "Error" : "Success"}
+${result.error ? `Error: ${result.error}` : ""}
+Execution Time: ${result.executionTime || "N/A"}ms`;
+    });
 
-    setOutput(newOutput)
-    setIsRunning(false)
-  }
+    setOutput(newOutput);
+    setIsRunning(false);
+  };
 
   const handleRun = async () => {
-    setIsRunning(true)
-    // The actual execution will be handled by PythonEditorComponent
-    // We just need to show "Running..." state
+    setIsRunning(true);
+  };
+
+  if (isLoading) {
+    return (
+      <div className="flex justify-center items-center h-screen">
+        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-500"></div>
+      </div>
+    );
+  }
+
+  if (!problem) {
+    return (
+      <div className="flex justify-center items-center h-screen text-lg">
+        Problem not found
+      </div>
+    );
   }
 
   return (
     <div className="grid grid-cols-2 gap-4 p-4 h-[calc(100vh-4rem)]">
       {/* Left Panel */}
-      <div className="flex flex-col h-full">
+      <div className="flex flex-col h-full overflow-auto pr-2">
         <div className="flex items-center justify-between mb-4">
           <h1 className="text-xl font-bold">
             {problem.id}. {problem.title}
           </h1>
-          <span className="px-2 py-1 text-sm rounded bg-green-200 text-green-800">
+          <span
+            className={`px-2 py-1 text-sm rounded ${
+              problem.difficulty === "Easy"
+                ? "bg-green-200 text-green-800"
+                : problem.difficulty === "Medium"
+                ? "bg-yellow-200 text-yellow-800"
+                : "bg-red-200 text-red-800"
+            }`}
+          >
             {problem.difficulty}
           </span>
         </div>
@@ -95,42 +196,111 @@ export default function ProblemPage() {
               <TabsTrigger value="solution">Solution</TabsTrigger>
               <TabsTrigger value="submissions">Submissions</TabsTrigger>
             </TabsList>
-            <TabsContent value="description" className="p-4">
-              <div className="prose dark:prose-invert">
-                <p>{problem.description}</p>
 
+            <TabsContent value="description" className="p-4">
+              <div className="prose prose-slate dark:prose-invert max-w-none">
+                <ReactMarkdown
+                  remarkPlugins={[remarkGfm, remarkMath]}
+                  rehypePlugins={[rehypeKatex]}
+                  components={MarkdownComponents}
+                >
+                  {processDescriptionText(problem.description)}
+                </ReactMarkdown>
+
+                {/* Examples */}
                 {problem.examples.map((example, index) => (
-                  <div key={index}>
-                    <h3>Example {index + 1}:</h3>
-                    <pre className="bg-white text-black p-2 rounded border border-gray-300 overflow-auto text-sm">
-                      {/* Escape quotes using &quot; */}
-                      <div>Input: s1 = &quot;{example.input.s1}&quot;, s2 = &quot;{example.input.s2}&quot;</div>
-                      <div>Output: {example.output}</div>
-                      <div>Explanation: {example.explanation}</div>
+                  <div key={index} className="mb-6">
+                    <h3 className="text-lg font-medium mb-2">
+                      Example {index + 1}:
+                    </h3>
+                    <pre className="bg-slate-950 text-slate-50 p-4 rounded-lg overflow-auto text-sm">
+                      <div className="mb-2">
+                        <strong>Input:</strong>{" "}
+                        <ReactMarkdown
+                          remarkPlugins={[remarkGfm, remarkMath]}
+                          rehypePlugins={[rehypeKatex]}
+                        >
+                          {example.input}
+                        </ReactMarkdown>
+                      </div>
+                      <div className="mb-2">
+                        <strong>Output:</strong>{" "}
+                        <ReactMarkdown
+                          remarkPlugins={[remarkGfm, remarkMath]}
+                          rehypePlugins={[rehypeKatex]}
+                        >
+                          {example.output}
+                        </ReactMarkdown>
+                      </div>
+                      {example.explanation && (
+                        <div>
+                          <strong>Explanation:</strong>{" "}
+                          <ReactMarkdown
+                            remarkPlugins={[remarkGfm, remarkMath]}
+                            rehypePlugins={[rehypeKatex]}
+                          >
+                            {example.explanation}
+                          </ReactMarkdown>
+                        </div>
+                      )}
                     </pre>
                   </div>
                 ))}
 
-                <h3>Constraints:</h3>
-                <ul>
-                  {problem.constraints.map((constraint, index) => (
-                    <li key={index}>{constraint}</li>
-                  ))}
-                </ul>
+                {/* Constraints */}
+                {problem.constraints && (
+                  <div className="mb-6">
+                    <h3 className="text-lg font-medium mb-2">Constraints:</h3>
+                    <div className="bg-slate-950 p-4 rounded-lg">
+                      <ul className="list-none text-slate-50 text-sm space-y-1">
+                        {parseConstraints(problem.constraints).map(
+                          (constraint, index) => (
+                            <li key={index} className="flex items-start">
+                              <span className="mr-2">•</span>
+                              <span className="font-mono">
+                                <ReactMarkdown
+                                  remarkPlugins={[remarkGfm, remarkMath]}
+                                  rehypePlugins={[rehypeKatex]}
+                                >
+                                  {processConstraintText(constraint)}
+                                </ReactMarkdown>
+                              </span>
+                            </li>
+                          )
+                        )}
+                      </ul>
+                    </div>
+                  </div>
+                )}
+
+                {/* Topics */}
+                {problem.topics && problem.topics.length > 0 && (
+                  <div className="mb-6">
+                    <h3 className="text-lg font-medium mb-2">Topics:</h3>
+                    <div className="flex flex-wrap gap-2">
+                      {problem.topics.map((topic, index) => (
+                        <span
+                          key={index}
+                          className="px-3 py-1 bg-blue-100 text-blue-800 rounded-full text-sm font-medium"
+                        >
+                          {topic}
+                        </span>
+                      ))}
+                    </div>
+                  </div>
+                )}
               </div>
             </TabsContent>
 
             <TabsContent value="solution" className="p-4">
               <div className="prose dark:prose-invert">
-                {/* You could add some editorial or solution steps here */}
-                <p>Solution tab content goes here.</p>
+                <p>Solution will be available after you submit your answer.</p>
               </div>
             </TabsContent>
 
             <TabsContent value="submissions" className="p-4">
               <div className="prose dark:prose-invert">
-                {/* You could list past submissions or results here */}
-                <p>Submissions tab content goes here.</p>
+                <p>Your submission history will appear here.</p>
               </div>
             </TabsContent>
           </Tabs>
@@ -141,7 +311,12 @@ export default function ProblemPage() {
       <div className="flex flex-col h-full">
         <div className="flex items-center justify-end mb-4">
           <div className="flex gap-2">
-            <Button id="button-run" size="sm" onClick={handleRun} disabled={isRunning}>
+            <Button
+              id="button-run"
+              size="sm"
+              onClick={handleRun}
+              disabled={isRunning}
+            >
               <PlayIcon className="w-4 h-4 mr-2" />
               Run
             </Button>
@@ -152,46 +327,43 @@ export default function ProblemPage() {
           </div>
         </div>
 
-        <div className="flex flex-col flex-grow">
-          {/* Code Editor */}
-          <Card className="flex-grow mb-4">
-            <div id="monaco-editor-root" className="h-full" />
-            <PythonEditorComponent onExecutionComplete={handleCodeExecution} />
-          </Card>
+        <Card className="flex-grow flex flex-col h-[500px]">
+          <div className="flex-grow">
+            <div id="monaco-editor-root" style={{ height: "100%" }}>
+              <PythonEditorComponent onExecutionComplete={handleCodeExecution} />
+            </div>
+          </div>
+        </Card>
 
-          {/* Console Output */}
-          <Card className="h-[200px] flex flex-col">
-            <div className="flex items-center justify-between border-b p-2">
-              <Tabs
-                value={`testcase-${activeTestCase}`}
-                onValueChange={(value) =>
-                  setActiveTestCase(Number(value.split("-")[1]))
-                }
-              >
-                <TabsList>
-                  {problem.examples.map((_, index) => (
-                    <TabsTrigger key={index} value={`testcase-${index}`}>
-                      Case {index + 1}
-                    </TabsTrigger>
-                  ))}
-                </TabsList>
-              </Tabs>
-              <Button variant="ghost" size="sm">
-                <Maximize2Icon className="w-4 h-4" />
-              </Button>
-            </div>
-            <div className="flex-grow p-4 font-mono text-sm overflow-auto bg-black text-white">
-              {isRunning ? (
-                <div>Running test cases...</div>
-              ) : (
-                <pre className="whitespace-pre-wrap">
-                  {output[activeTestCase] || 'Click "Run" to execute the code.'}
-                </pre>
-              )}
-            </div>
-          </Card>
-        </div>
+        <Card className="h-[200px] flex flex-col">
+          <div className="flex items-center justify-between border-b p-2">
+            <Tabs
+              value={`testcase-${activeTestCase}`}
+              onValueChange={(value) =>
+                setActiveTestCase(Number(value.split("-")[1]))
+              }
+            >
+              <TabsList>
+                {problem.examples.map((_, index) => (
+                  <TabsTrigger key={index} value={`testcase-${index}`}>
+                    Case {index + 1}
+                  </TabsTrigger>
+                ))}
+              </TabsList>
+            </Tabs>
+            <Button variant="ghost" size="sm">
+              <Maximize2Icon className="w-4 h-4" />
+            </Button>
+          </div>
+          <div className="flex-grow p-4 font-mono text-sm overflow-auto bg-black text-white">
+            <pre className="whitespace-pre-wrap m-0">
+              {isRunning
+                ? "Running test cases..."
+                : output[activeTestCase] || 'Click "Run" to execute the code.'}
+            </pre>
+          </div>
+        </Card>
       </div>
     </div>
-  )
+  );
 }
