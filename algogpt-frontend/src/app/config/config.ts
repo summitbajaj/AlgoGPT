@@ -32,7 +32,7 @@ export const createUserConfig = (workspaceRoot: string, code: string, codeUri: s
         languageClientConfigs: {
             python: {
                 languageId: 'python',
-                name: 'Python Language Server Example',
+                name: 'AlgoGPT Python Language Server',
                 connection: {
                     options: {
                         $type: 'WebSocketDirect',
@@ -78,7 +78,8 @@ export const createUserConfig = (workspaceRoot: string, code: string, codeUri: s
                     'python.analysis.typeCheckingMode': 'basic',
                     'python.analysis.diagnosticSeverityOverrides': {
                         'reportMissingImports': 'none',
-                        'reportMissingModuleSource': 'none'
+                        'reportMissingModuleSource': 'none',
+                        'reportUndefinedVariable': 'none'
                     },
                     // Enable these features for better IntelliSense
                     'editor.suggestSelection': 'first',
