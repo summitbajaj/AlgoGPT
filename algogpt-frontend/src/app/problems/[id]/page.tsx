@@ -18,30 +18,7 @@ import remarkGfm from 'remark-gfm';
 import remarkMath from 'remark-math';
 import rehypeKatex from 'rehype-katex';
 import 'katex/dist/katex.min.css';
-
-// Type Definitions
-interface Example {
-  input: string;
-  output: string;
-  explanation?: string;
-}
-
-interface Problem {
-  id: number;
-  title: string;
-  description: string;
-  difficulty: string;
-  constraints: string;
-  examples: Example[];
-  topics: string[];
-  starterCode?: string;
-}
-
-interface ExecutionResult {
-  error?: string;
-  output?: string | null;
-  executionTime?: number | null;
-}
+import { Problem, ExecutionResult } from "./types";
 
 // Helper functions
 const parseConstraints = (constraintsStr: string): string[] => {
@@ -330,7 +307,9 @@ Execution Time: ${result.executionTime || "N/A"}ms`;
         <Card className="flex-grow flex flex-col h-[500px]">
           <div className="flex-grow">
             <div id="monaco-editor-root" style={{ height: "100%" }}>
-              <PythonEditorComponent onExecutionComplete={handleCodeExecution} />
+              <PythonEditorComponent 
+              onExecutionComplete={handleCodeExecution}
+              initialCode={problem.starter_code} />
             </div>
           </div>
         </Card>

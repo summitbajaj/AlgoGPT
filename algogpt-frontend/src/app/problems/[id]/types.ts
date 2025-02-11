@@ -14,7 +14,7 @@ export interface Problem {
     constraints: string;
     examples: Example[];
     topics: string[];
-    starterCode: string;
+    starter_code: string;
 }
   
 export interface ExecutionResult {
