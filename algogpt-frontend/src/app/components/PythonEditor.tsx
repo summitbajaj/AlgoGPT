@@ -124,6 +124,17 @@ export const PythonEditorComponent: React.FC<PythonEditorProps> = ({
             }}
             onLoad={(wrapper: MonacoEditorLanguageClientWrapper) => {
               console.log(`Loaded:\n${wrapper.reportStatus().join('\n')}`);
+
+              // set up initial folding
+              const editor = wrapper.getEditor()
+              if (editor) {
+                // Force initial fold of imports
+                setTimeout(() => {
+                    editor.trigger('fold', 'editor.fold', {
+                        selectionLines: [1, 2] // Lines containing your imports
+                    });
+                }, 500);
+              }
             }}
             onError={(e) => {
               console.error('Editor error:', e);

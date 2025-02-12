@@ -79,7 +79,6 @@ export const createUserConfig = (workspaceRoot: string, code: string, codeUri: s
                     'python.analysis.diagnosticSeverityOverrides': {
                         'reportMissingImports': 'none',
                         'reportMissingModuleSource': 'none',
-                        'reportUndefinedVariable': 'none'
                     },
                     // Enable these features for better IntelliSense
                     'editor.suggestSelection': 'first',
@@ -87,7 +86,24 @@ export const createUserConfig = (workspaceRoot: string, code: string, codeUri: s
                     'editor.suggest.preview': true,
                     'editor.acceptSuggestionOnEnter': 'on',
                     'editor.suggestOnTriggerCharacters': true,
-                    'editor.hover.enabled': true
+                    'editor.hover.enabled': true,
+
+                    // Monaco editor specific folding settings
+                    'editor.folding': true,
+                    'editor.foldingStrategy': 'auto',
+                    'editor.foldingHighlight': true,
+                    'editor.showFoldingControls': 'always',
+                    'editor.foldingImportsByDefault': true,
+                    
+                    // Language specific settings
+                    '[python]': {
+                        'editor.foldingStrategy': 'auto',
+                        'editor.defaultFoldingRangeProvider': 'pyright'
+                    },
+                    
+                    // Add these for better folding support
+                    'editor.unfoldOnClickAfterEndOfLine': true,
+                    'editor.semanticHighlighting.enabled': true
                 })
             } 
         },
