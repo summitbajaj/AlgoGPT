@@ -37,6 +37,7 @@ class Problem(Base):
     description = Column(Text, nullable=False)
     difficulty = Column(Enum(DifficultyLevel), nullable=False)
     constraints = Column(Text, nullable=True)
+    starter_code = Column(Text, nullable=True)
 
     # Relationship to user-visible Examples
     examples = relationship("Example", back_populates="problem")

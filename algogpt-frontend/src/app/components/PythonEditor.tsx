@@ -13,10 +13,8 @@ import {
   WrapperConfig,
 } from 'monaco-editor-wrapper';
 import { createUserConfig } from '../config/config';
-import onLoadPyCode from '!!raw-loader!../resources/onLoad.py';
 import { runCode } from '../utils/api';
 
-// Define a more specific interface instead of using `any`.
 interface ExecutionResult {
   error?: string;
   output?: string | null;
@@ -25,38 +23,38 @@ interface ExecutionResult {
 
 interface PythonEditorProps {
   onExecutionComplete?: (result: ExecutionResult) => void;
+  initialCode?: string;
 }
 
 export const PythonEditorComponent: React.FC<PythonEditorProps> = ({
   onExecutionComplete,
+  initialCode = "",
 }) => {
-  const [code, setCode] = useState(onLoadPyCode);
+  const [code, setCode] = useState(initialCode);
   const [editorRoot, setEditorRoot] = useState<ReactDOM.Root | null>(null);
   const [lspConnected, setLspConnected] = useState(true);
   const codeRef = useRef(code);
 
-  // Keep codeRef in sync with `code`
   useEffect(() => {
     codeRef.current = code;
   }, [code]);
 
-  // If you only want to run the editor initialization once, you can disable the
-  // react-hooks/exhaustive-deps rule here:
   useEffect(() => {
-    initializeEditor().catch((err) => {
+    setCode(initialCode);
+  }, [initialCode]);
+
+  useEffect(() => {
+    initializeEditor(initialCode).catch((err) => {
       console.error('Failed to initialize editor with LSP:', err);
       setLspConnected(false);
-      initializeEditorWithoutLSP();
+      initializeEditorWithoutLSP(initialCode);
     });
 
     const runButton = document.querySelector('#button-run');
     const handleClick = async () => {
       try {
-        // Run your code
         const response = await runCode(codeRef.current);
         console.log('API Response:', response);
-
-        // Pass the execution result back to the parent component
         onExecutionComplete?.(response);
       } catch (error) {
         console.error('Failed to run code:', error);
@@ -74,32 +72,25 @@ export const PythonEditorComponent: React.FC<PythonEditorProps> = ({
       runButton?.removeEventListener('click', handleClick);
       editorRoot?.unmount();
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  const initializeEditor = async () => {
+  const initializeEditor = async (code: string) => {
     try {
-      const onLoadPyUri = vscode.Uri.file('/workspace/bad.py');
+      const fileUri = vscode.Uri.file('/workspace/problem.py'); // More relevant name
       const fileSystemProvider = new RegisteredFileSystemProvider(false);
-      fileSystemProvider.registerFile(
-        new RegisteredMemoryFile(onLoadPyUri, onLoadPyCode)
-      );
+      fileSystemProvider.registerFile(new RegisteredMemoryFile(fileUri, code));
       registerFileSystemOverlay(1, fileSystemProvider);
 
-      const wrapperConfig = createUserConfig(
-        '/workspace',
-        onLoadPyCode,
-        '/workspace/bad.py'
-      );
+      const wrapperConfig = createUserConfig('/workspace', code, '/workspace/problem.py');
       renderEditor(wrapperConfig);
     } catch (err) {
       throw err;
     }
   };
 
-  const initializeEditorWithoutLSP = async () => {
+  const initializeEditorWithoutLSP = async (code: string) => {
     const wrapperConfig: WrapperConfig = {
-      ...createUserConfig('/workspace', onLoadPyCode, '/workspace/bad.py'),
+      ...createUserConfig('/workspace', code, '/workspace/problem.py'),
       languageClientConfigs: undefined,
     };
     renderEditor(wrapperConfig);
@@ -133,6 +124,17 @@ export const PythonEditorComponent: React.FC<PythonEditorProps> = ({
             }}
             onLoad={(wrapper: MonacoEditorLanguageClientWrapper) => {
               console.log(`Loaded:\n${wrapper.reportStatus().join('\n')}`);
+
+              // set up initial folding
+              const editor = wrapper.getEditor()
+              if (editor) {
+                // Force initial fold of imports
+                setTimeout(() => {
+                    editor.trigger('fold', 'editor.fold', {
+                        selectionLines: [1, 2] // Lines containing your imports
+                    });
+                }, 500);
+              }
             }}
             onError={(e) => {
               console.error('Editor error:', e);
@@ -142,7 +144,6 @@ export const PythonEditorComponent: React.FC<PythonEditorProps> = ({
       );
     };
 
-    // Check whether Strict Mode is enabled via #checkbox-strictmode
     const strictMode =
       (document.getElementById('checkbox-strictmode') as HTMLInputElement)
         ?.checked ?? false;
@@ -160,4 +161,3 @@ export const PythonEditorComponent: React.FC<PythonEditorProps> = ({
 
   return null;
 };
-

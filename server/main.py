@@ -1,3 +1,4 @@
+from fastapi.middleware.cors import CORSMiddleware
 from fastapi import FastAPI, Depends
 from sqlalchemy.orm import Session
 import requests
@@ -11,6 +12,14 @@ load_dotenv()
 
 app = FastAPI()
 
+# ✅ Enable CORS
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],  # Allow all origins (change this in production)
+    allow_credentials=True,
+    allow_methods=["*"],  # Allow all HTTP methods (GET, POST, etc.)
+    allow_headers=["*"],  # Allow all headers
+)
 # Dependency to get a database session
 def get_db():
     db = SessionLocal()
@@ -44,7 +53,7 @@ def get_problem(problem_id: int, db: Session = Depends(get_db)):
     problem = db.query(Problem).filter(Problem.id == problem_id).first()
     if not problem:
         return {"error": "Problem not found"}
-    
+
     return {
         "id": problem.id,
         "title": problem.title,
@@ -56,6 +65,7 @@ def get_problem(problem_id: int, db: Session = Depends(get_db)):
             {"input": ex.input_data, "output": ex.output_data, "explanation": ex.explanation}
             for ex in problem.examples
         ],
+        "starter_code": problem.starter_code,
     }
 
 # -------------------------------
