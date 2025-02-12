@@ -14,6 +14,7 @@ import {
 } from 'monaco-editor-wrapper';
 import { createUserConfig } from '../config/config';
 import { runCode } from '../utils/api';
+import * as monaco from 'monaco-editor';
 
 interface ExecutionResult {
   error?: string;
@@ -120,14 +121,33 @@ export const PythonEditorComponent: React.FC<PythonEditorProps> = ({
               }}
               onLoad={(wrapper: MonacoEditorLanguageClientWrapper) => {
                 console.log(`Loaded:\n${wrapper.reportStatus().join('\n')}`);
-
-                const editor = wrapper.getEditor()
+                
+                const editor = wrapper.getEditor();
                 if (editor) {
+                  // Reduce delay for faster folding if possible
                   setTimeout(() => {
-                    editor.trigger('fold', 'editor.fold', {
-                      selectionLines: [1, 2]
-                    });
-                  }, 500);
+                    const model = editor.getModel();
+                    if (!model) return;
+              
+                    // Determine the block of import statements.
+                    const lines = model.getLinesContent();
+                    let endLine = 0;
+                    for (let i = 0; i < lines.length; i++) {
+                      if (lines[i].startsWith("import") || lines[i].startsWith("from")) {
+                        endLine = i + 1;
+                      } else if (endLine > 0) {
+                        // break if the import block has ended
+                        break;
+                      }
+                    }
+                    // Fold if we found more than one line in the import block.
+                    if (endLine > 1) {
+                      // Set the selection that covers the import block.
+                      editor.setSelection(new monaco.Selection(1, 1, endLine, 1));
+                      // Run the fold command for the selected region.
+                      editor.getAction("editor.fold")?.run();
+                    }
+                  }, 50);
                 }
               }}
               onError={(e) => {
@@ -185,7 +205,7 @@ export const PythonEditorComponent: React.FC<PythonEditorProps> = ({
     return () => {
       editorRootRef.current?.unmount();
     };
-  }, []);  // Empty dependency array is now fine since we use refs
+  }, []);
 
   return null;
 };
