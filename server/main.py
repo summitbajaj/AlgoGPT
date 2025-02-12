@@ -1,9 +1,11 @@
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi import FastAPI, Depends
+from fastapi import FastAPI, Depends, HTTPException
 from sqlalchemy.orm import Session
 import requests
 from database.database import SessionLocal
 from database.models import Problem, TestCase, Example, Topic
+from schemas import ExecutionRequest, ExecutionResponse
+from helpers import get_test_cases  
 from dotenv import load_dotenv
 import os
 
@@ -11,6 +13,8 @@ import os
 load_dotenv()
 
 app = FastAPI()
+
+EXECUTION_SERVER_URL = "http://code-runner:5000/run-code"
 
 # ✅ Enable CORS
 app.add_middleware(
@@ -72,7 +76,7 @@ def get_problem(problem_id: int, db: Session = Depends(get_db)):
 # 3️⃣ Fetch test cases for a problem
 # -------------------------------
 @app.get("/problems/{problem_id}/test-cases")
-def get_test_cases(problem_id: int, db: Session = Depends(get_db)):
+def fetch_test_cases(problem_id: int, db: Session = Depends(get_db)):
     test_cases = db.query(TestCase).filter(TestCase.problem_id == problem_id).all()
     return [
         {"input": tc.input_data, "expected_output": tc.expected_output}
@@ -82,13 +86,32 @@ def get_test_cases(problem_id: int, db: Session = Depends(get_db)):
 # -------------------------------
 # 4️⃣ Execute user code (Forwards to Flask Code Runner)
 # -------------------------------
-@app.post("/execute")
-def execute_code(request: dict):
-    user_code = request["code"]
+@app.post("/execute", response_model=ExecutionResponse)
+def execute_code(request: ExecutionRequest, db: Session = Depends(get_db)):
+    """Fetches test cases, forwards request to code runner, and returns results."""
 
-    # Forward request to Flask Code Runner
-    flask_url = "http://code-runner:5000/run-code" 
-    execution_request = {"code": user_code}
+    # Fetch test cases from the database
+    test_cases = get_test_cases(db, request.problem_id)
 
-    response = requests.post(flask_url, json=execution_request)
+    if not test_cases:
+        raise HTTPException(status_code=404, detail="No test cases found for this problem")
+
+    # Send user code + test cases to the execution service
+    execution_payload = {
+        "code": request.code,
+        "test_cases": test_cases
+    }
+
+    response = requests.post(EXECUTION_SERVER_URL, json=execution_payload)
+
+    if response.status_code != 200:
+        raise HTTPException(status_code=500, detail="Code execution service failed")
+
     return response.json()
+
+    # # Forward request to Flask Code Runner
+    # flask_url = "http://code-runner:5000/run-code" 
+    # execution_request = {"code": user_code}
+
+    # response = requests.post(flask_url, json=execution_request)
+    # return response.json()
