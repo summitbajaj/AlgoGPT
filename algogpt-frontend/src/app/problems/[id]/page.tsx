@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, DetailedHTMLProps, HTMLAttributes } from "react";
 import { Button } from "@/components/ui/button";
 import {
   Tabs,
@@ -12,12 +12,15 @@ import { Card } from "@/components/ui/card";
 import { PlayIcon, CheckIcon, Maximize2Icon } from "lucide-react";
 import { PythonEditorComponent } from "@/app/components/PythonEditor";
 import { useParams } from "next/navigation";
-import ReactMarkdown from 'react-markdown';
+import ReactMarkdown, {Components} from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import remarkMath from 'remark-math';
 import rehypeKatex from 'rehype-katex';
 import 'katex/dist/katex.min.css';
 import { Problem, ExecutionResult } from "./types";
+
+type MarkdownComponentProps<T extends HTMLElement> = DetailedHTMLProps<HTMLAttributes<T>, T>;
+
 
 // Helper functions
 const parseConstraints = (constraintsStr: string): string[] => {
@@ -40,37 +43,37 @@ const processDescriptionText = (text: string) => {
 };
 
 // Custom markdown components
-const MarkdownComponents = {
-  p: ({node, ...props}: any) => (
+const MarkdownComponents: Components = {
+  p: (props: MarkdownComponentProps<HTMLParagraphElement>) => (
     <p className="mb-4 leading-7" {...props} />
   ),
-  pre: ({node, ...props}: any) => (
+  pre: (props: MarkdownComponentProps<HTMLPreElement>) => (
     <pre className="bg-slate-950 text-slate-50 p-4 rounded-lg overflow-auto my-4" {...props} />
   ),
-  code: ({node, inline, ...props}: any) => (
+  code: ({ inline, ...props }: MarkdownComponentProps<HTMLElement> & { inline?: boolean }) => (
     inline ? 
       <code className="bg-gray-200 dark:bg-gray-800 px-1.5 py-0.5 rounded text-sm font-mono" {...props} /> :
       <code {...props} />
   ),
-  ul: ({node, ...props}: any) => (
+  ul: (props: MarkdownComponentProps<HTMLUListElement>) => (
     <ul className="list-disc pl-6 mb-4 space-y-2" {...props} />
   ),
-  ol: ({node, ...props}: any) => (
+  ol: (props: MarkdownComponentProps<HTMLOListElement>) => (
     <ol className="list-decimal pl-6 mb-4 space-y-2" {...props} />
   ),
-  li: ({node, ...props}: any) => (
+  li: (props: MarkdownComponentProps<HTMLLIElement>) => (
     <li className="mb-1" {...props} />
   ),
-  blockquote: ({node, ...props}: any) => (
+  blockquote: (props: MarkdownComponentProps<HTMLQuoteElement>) => (
     <blockquote className="border-l-4 border-slate-300 dark:border-slate-700 pl-4 my-4 italic" {...props} />
   ),
-  h1: ({node, ...props}: any) => (
+  h1: (props: MarkdownComponentProps<HTMLHeadingElement>) => (
     <h1 className="text-3xl font-bold mb-4 mt-6" {...props} />
   ),
-  h2: ({node, ...props}: any) => (
+  h2: (props: MarkdownComponentProps<HTMLHeadingElement>) => (
     <h2 className="text-2xl font-bold mb-3 mt-5" {...props} />
   ),
-  h3: ({node, ...props}: any) => (
+  h3: (props: MarkdownComponentProps<HTMLHeadingElement>) => (
     <h3 className="text-xl font-bold mb-2 mt-4" {...props} />
   ),
 };

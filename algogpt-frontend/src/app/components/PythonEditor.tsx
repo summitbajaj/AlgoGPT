@@ -34,24 +34,36 @@ export const PythonEditorComponent: React.FC<PythonEditorProps> = ({
   const [editorRoot, setEditorRoot] = useState<ReactDOM.Root | null>(null);
   const [lspConnected, setLspConnected] = useState(true);
   const codeRef = useRef(code);
+  const editorInitializedRef = useRef(false);
+  const editorRootRef = useRef<ReactDOM.Root | null>(null);
+  const initialCodeRef = useRef(initialCode);
+  const lspConnectedRef = useRef(true);
 
+  // Keep refs in sync with state
   useEffect(() => {
     codeRef.current = code;
   }, [code]);
 
   useEffect(() => {
-    setCode(initialCode);
+    editorRootRef.current = editorRoot;
+  }, [editorRoot]);
+
+  useEffect(() => {
+    initialCodeRef.current = initialCode;
   }, [initialCode]);
 
   useEffect(() => {
-    initializeEditor(initialCode).catch((err) => {
-      console.error('Failed to initialize editor with LSP:', err);
-      setLspConnected(false);
-      initializeEditorWithoutLSP(initialCode);
-    });
+    lspConnectedRef.current = lspConnected;
+  }, [lspConnected]);
 
-    const runButton = document.querySelector('#button-run');
-    const handleClick = async () => {
+  // Update code when initialCode prop changes
+  useEffect(() => {
+    setCode(initialCode);
+  }, [initialCode]);
+
+  // Handle run button click
+  useEffect(() => {
+    const handleRunCode = async () => {
       try {
         const response = await runCode(codeRef.current);
         console.log('API Response:', response);
@@ -66,98 +78,114 @@ export const PythonEditorComponent: React.FC<PythonEditorProps> = ({
       }
     };
 
-    runButton?.addEventListener('click', handleClick);
+    const runButton = document.querySelector('#button-run');
+    runButton?.addEventListener('click', handleRunCode);
 
     return () => {
-      runButton?.removeEventListener('click', handleClick);
-      editorRoot?.unmount();
+      runButton?.removeEventListener('click', handleRunCode);
     };
-  }, []);
+  }, [onExecutionComplete]);
 
-  const initializeEditor = async (code: string) => {
-    try {
-      const fileUri = vscode.Uri.file('/workspace/problem.py'); // More relevant name
-      const fileSystemProvider = new RegisteredFileSystemProvider(false);
-      fileSystemProvider.registerFile(new RegisteredMemoryFile(fileUri, code));
-      registerFileSystemOverlay(1, fileSystemProvider);
+  // Initialize editor once
+  useEffect(() => {
+    if (editorInitializedRef.current) return;
+    editorInitializedRef.current = true;
 
-      const wrapperConfig = createUserConfig('/workspace', code, '/workspace/problem.py');
-      renderEditor(wrapperConfig);
-    } catch (err) {
-      throw err;
-    }
-  };
+    const renderEditor = (wrapperConfig: WrapperConfig) => {
+      const container = document.getElementById('monaco-editor-root');
+      if (!container) {
+        console.error('Editor container not found');
+        return;
+      }
 
-  const initializeEditorWithoutLSP = async (code: string) => {
-    const wrapperConfig: WrapperConfig = {
-      ...createUserConfig('/workspace', code, '/workspace/problem.py'),
-      languageClientConfigs: undefined,
-    };
-    renderEditor(wrapperConfig);
-  };
+      const root = ReactDOM.createRoot(container);
+      setEditorRoot(root);
+      editorRootRef.current = root;
 
-  const renderEditor = (wrapperConfig: WrapperConfig) => {
-    const container = document.getElementById('monaco-editor-root');
-    if (!container) {
-      console.error('Editor container not found');
-      return;
-    }
+      const App: React.FC = () => {
+        return (
+          <div style={{ height: '100%', padding: '5px' }}>
+            {!lspConnectedRef.current && (
+              <div className="bg-yellow-500 text-black p-2 mb-2 rounded">
+                LSP connection failed. Editor running in basic mode.
+              </div>
+            )}
+            <MonacoEditorReactComp
+              wrapperConfig={wrapperConfig}
+              style={{ height: '100%' }}
+              onTextChanged={(textChanges: TextChanges) => {
+                if (textChanges.text) {
+                  setCode(textChanges.text);
+                }
+              }}
+              onLoad={(wrapper: MonacoEditorLanguageClientWrapper) => {
+                console.log(`Loaded:\n${wrapper.reportStatus().join('\n')}`);
 
-    const root = ReactDOM.createRoot(container);
-    setEditorRoot(root);
-
-    const App: React.FC = () => {
-      return (
-        <div style={{ height: '100%', padding: '5px' }}>
-          {!lspConnected && (
-            <div className="bg-yellow-500 text-black p-2 mb-2 rounded">
-              LSP connection failed. Editor running in basic mode.
-            </div>
-          )}
-          <MonacoEditorReactComp
-            wrapperConfig={wrapperConfig}
-            style={{ height: '100%' }}
-            onTextChanged={(textChanges: TextChanges) => {
-              if (textChanges.text) {
-                setCode(textChanges.text);
-              }
-            }}
-            onLoad={(wrapper: MonacoEditorLanguageClientWrapper) => {
-              console.log(`Loaded:\n${wrapper.reportStatus().join('\n')}`);
-
-              // set up initial folding
-              const editor = wrapper.getEditor()
-              if (editor) {
-                // Force initial fold of imports
-                setTimeout(() => {
+                const editor = wrapper.getEditor()
+                if (editor) {
+                  setTimeout(() => {
                     editor.trigger('fold', 'editor.fold', {
-                        selectionLines: [1, 2] // Lines containing your imports
+                      selectionLines: [1, 2]
                     });
-                }, 500);
-              }
-            }}
-            onError={(e) => {
-              console.error('Editor error:', e);
-            }}
-          />
-        </div>
-      );
+                  }, 500);
+                }
+              }}
+              onError={(e) => {
+                console.error('Editor error:', e);
+              }}
+            />
+          </div>
+        );
+      };
+
+      const strictMode =
+        (document.getElementById('checkbox-strictmode') as HTMLInputElement)
+          ?.checked ?? false;
+
+      if (strictMode) {
+        root.render(
+          <StrictMode>
+            <App />
+          </StrictMode>
+        );
+      } else {
+        root.render(<App />);
+      }
     };
 
-    const strictMode =
-      (document.getElementById('checkbox-strictmode') as HTMLInputElement)
-        ?.checked ?? false;
+    const initializeEditor = async (code: string) => {
+      try {
+        const fileUri = vscode.Uri.file('/workspace/problem.py');
+        const fileSystemProvider = new RegisteredFileSystemProvider(false);
+        fileSystemProvider.registerFile(new RegisteredMemoryFile(fileUri, code));
+        registerFileSystemOverlay(1, fileSystemProvider);
 
-    if (strictMode) {
-      root.render(
-        <StrictMode>
-          <App />
-        </StrictMode>
-      );
-    } else {
-      root.render(<App />);
-    }
-  };
+        const wrapperConfig = createUserConfig('/workspace', code, '/workspace/problem.py');
+        renderEditor(wrapperConfig);
+      } catch (err) {
+        throw err;
+      }
+    };
+
+    const initializeEditorWithoutLSP = async (code: string) => {
+      const wrapperConfig: WrapperConfig = {
+        ...createUserConfig('/workspace', code, '/workspace/problem.py'),
+        languageClientConfigs: undefined,
+      };
+      renderEditor(wrapperConfig);
+    };
+
+    initializeEditor(initialCodeRef.current).catch((err) => {
+      console.error('Failed to initialize editor with LSP:', err);
+      setLspConnected(false);
+      lspConnectedRef.current = false;
+      initializeEditorWithoutLSP(initialCodeRef.current);
+    });
+
+    return () => {
+      editorRootRef.current?.unmount();
+    };
+  }, []);  // Empty dependency array is now fine since we use refs
 
   return null;
 };
