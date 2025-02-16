@@ -1,5 +1,6 @@
 from sqlalchemy import Column, Integer, String, Text, Enum, ForeignKey, Table
 from sqlalchemy.orm import relationship
+from sqlalchemy.dialects.postgresql import JSONB
 from . import Base
 import enum
 
@@ -55,8 +56,8 @@ class TestCase(Base):
 
     id = Column(Integer, primary_key=True)
     problem_id = Column(Integer, ForeignKey("problems.id"), nullable=False)
-    input_data = Column(Text, nullable=False)
-    expected_output = Column(Text, nullable=False)
+    input_data = Column(JSONB, nullable=False)
+    expected_output = Column(JSONB, nullable=False)
 
     problem = relationship("Problem", back_populates="test_cases")
 
