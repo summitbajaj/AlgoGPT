@@ -1,38 +1,33 @@
 from flask import Flask, request, jsonify
 from flask_cors import CORS
 import time
-import ast
 
 app = Flask(__name__)
 CORS(app)
 
 def run_user_code(user_code, test_cases, function_name):
     """
-    Executes the user code against the provided test cases.
-
-    Expected user code format:
-    -------------------------------
-    class Solution:
-        def some_fn(self, *args):
-            # implementation
-            ...
-
-    Each test case is expected to be a dict:
-    {
-        "input_data": "[2,3]",
-        "expected_output": 5
-    }
+    Executes the user code against test cases.
+    Test cases now have 'input_data' stored as structured JSONB.
+    
+    For example:
+    Two Sum:
+        input_data: { "nums": [2, 7, 11, 15], "target": 9 }
+        expected_output: [0, 1]
+    
+    Valid Parentheses:
+        input_data: { "s": "()" }
+        expected_output: true
     """
     results = []
     global_namespace = {}
 
-    # Load the user code
+    # Load the user code.
     try:
         exec(user_code, global_namespace)
     except Exception as e:
         return {"error": f"Error in user code: {e}"}
 
-    # Verify the submitted code contains a class named 'solution'
     if 'Solution' not in global_namespace:
         return {"error": "No class named 'Solution' found in the submitted code."}
 
@@ -40,34 +35,37 @@ def run_user_code(user_code, test_cases, function_name):
     start_time = time.time()
 
     for tc in test_cases:
-        input_data = tc.get("input_data", "")
-        expected_output = tc.get("expected_output", None)
+        input_data = tc.get("input_data")
+        expected_output = tc.get("expected_output")
 
-        # Parse input into arguments
-        try:
-            args = ast.literal_eval(input_data)
-            if not isinstance(args, (list, tuple)):
-                args = [args]
-        except Exception as e:
-            results.append({
-                "input": input_data,
-                "expected": expected_output,
-                "output": f"Error parsing input: {e}",
-                "passed": False
-            })
-            continue
-
-        # Call some_fn with the parsed arguments
-        try:
-            output = getattr(sol_instance, function_name)(*args)
-        except Exception as e:
-            results.append({
-                "input": input_data,
-                "expected": expected_output,
-                "output": f"Error during execution: {e}",
-                "passed": False
-            })
-            continue
+        # If input_data is a dict, assume it's mapping parameter names to values and unpack as keyword arguments.
+        if isinstance(input_data, dict):
+            try:
+                output = getattr(sol_instance, function_name)(**input_data)
+            except Exception as e:
+                results.append({
+                    "input": input_data,
+                    "expected": expected_output,
+                    "output": f"Error during execution: {e}",
+                    "passed": False
+                })
+                continue
+        else:
+            # Otherwise, if it's a list or a scalar, build positional arguments.
+            if isinstance(input_data, (list, tuple)):
+                args = input_data
+            else:
+                args = [input_data]
+            try:
+                output = getattr(sol_instance, function_name)(*args)
+            except Exception as e:
+                results.append({
+                    "input": input_data,
+                    "expected": expected_output,
+                    "output": f"Error during execution: {e}",
+                    "passed": False
+                })
+                continue
 
         passed = output == expected_output
         results.append({
@@ -98,7 +96,6 @@ def run_code():
         return jsonify({"error": "No code provided"}), 400
 
     result = run_user_code(user_code, test_cases, function_name)
-    print(result)
     if "error" in result:
         return jsonify({"error": result["error"]}), 400
 
