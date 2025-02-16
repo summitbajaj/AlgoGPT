@@ -51,6 +51,8 @@ services:
     command: ["gunicorn", "-w", "4", "-b", "0.0.0.0:5000", "codeExecution:app"]
     networks:
       - app-network
+    environment:
+      - PYTHONUNBUFFERED=1
 
 networks:
   app-network:
