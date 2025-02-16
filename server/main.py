@@ -5,7 +5,7 @@ import requests
 from database.database import SessionLocal
 from database.models import Problem, TestCase, Example, Topic
 from schemas import ExecutionRequest, ExecutionResponse
-from helpers import get_test_cases  
+from helpers import get_test_cases, get_function_name
 from dotenv import load_dotenv
 import os
 
@@ -93,13 +93,17 @@ def execute_code(request: ExecutionRequest, db: Session = Depends(get_db)):
     # Fetch test cases from the database
     test_cases = get_test_cases(db, request.problem_id)
 
+    # Fetch function name from the database
+    function_name = get_function_name(db, request.problem_id)
+
     if not test_cases:
         raise HTTPException(status_code=404, detail="No test cases found for this problem")
 
     # Send user code + test cases to the execution service
     execution_payload = {
         "code": request.code,
-        "test_cases": test_cases
+        "test_cases": test_cases,
+        "function_name": function_name,
     }
 
     response = requests.post(EXECUTION_SERVER_URL, json=execution_payload)

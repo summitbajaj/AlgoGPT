@@ -6,13 +6,13 @@ import ast
 app = Flask(__name__)
 CORS(app)
 
-def run_user_code(user_code, test_cases):
+def run_user_code(user_code, test_cases, function_name):
     """
     Executes the user code against the provided test cases.
 
     Expected user code format:
     -------------------------------
-    class solution:
+    class Solution:
         def some_fn(self, *args):
             # implementation
             ...
@@ -33,10 +33,10 @@ def run_user_code(user_code, test_cases):
         return {"error": f"Error in user code: {e}"}
 
     # Verify the submitted code contains a class named 'solution'
-    if 'solution' not in global_namespace:
-        return {"error": "No class named 'solution' found in the submitted code."}
+    if 'Solution' not in global_namespace:
+        return {"error": "No class named 'Solution' found in the submitted code."}
 
-    sol_instance = global_namespace['solution']()
+    sol_instance = global_namespace['Solution']()
     start_time = time.time()
 
     for tc in test_cases:
@@ -59,7 +59,7 @@ def run_user_code(user_code, test_cases):
 
         # Call some_fn with the parsed arguments
         try:
-            output = getattr(sol_instance, "some_fn")(*args)
+            output = getattr(sol_instance, function_name)(*args)
         except Exception as e:
             results.append({
                 "input": input_data,
@@ -92,11 +92,13 @@ def run_code():
     data = request.json
     user_code = data.get("code", "")
     test_cases = data.get("test_cases", [])
+    function_name = data.get("function_name", "")
     
     if not user_code:
         return jsonify({"error": "No code provided"}), 400
 
-    result = run_user_code(user_code, test_cases)
+    result = run_user_code(user_code, test_cases, function_name)
+    print(result)
     if "error" in result:
         return jsonify({"error": result["error"]}), 400
 
