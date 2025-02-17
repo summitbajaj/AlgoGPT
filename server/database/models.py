@@ -1,6 +1,6 @@
 from sqlalchemy import Column, Integer, String, Text, Enum, ForeignKey, Table
 from sqlalchemy.orm import relationship
-from sqlalchemy.dialects.postgresql import JSONB
+from sqlalchemy.dialects.postgresql import JSONB, BOOLEAN
 from . import Base
 import enum
 
@@ -58,7 +58,8 @@ class TestCase(Base):
     problem_id = Column(Integer, ForeignKey("problems.id"), nullable=False)
     input_data = Column(JSONB, nullable=False)
     expected_output = Column(JSONB, nullable=False)
-
+    # set order_sensitive to True by default, order matters
+    order_sensitive = Column(BOOLEAN, nullable=False, default=True)
     problem = relationship("Problem", back_populates="test_cases")
 
 # ----- 6) EXAMPLE MODEL --------------------------------------------------
