@@ -92,6 +92,7 @@ def execute_code(request: ExecutionRequest, db: Session = Depends(get_db)):
 
     # Fetch test cases from the database
     test_cases = get_test_cases(db, request.problem_id)
+    print(test_cases)
 
     # Fetch function name from the database
     function_name = get_function_name(db, request.problem_id)

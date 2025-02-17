@@ -37,6 +37,8 @@ def run_user_code(user_code, test_cases, function_name):
     for tc in test_cases:
         input_data = tc.get("input_data")
         expected_output = tc.get("expected_output")
+        # by default, assume order_sensitive is True 
+        order_sensitive = tc.get("order_sensitive", True)
 
         # If input_data is a dict, assume it's mapping parameter names to values and unpack as keyword arguments.
         if isinstance(input_data, dict):
@@ -67,7 +69,13 @@ def run_user_code(user_code, test_cases, function_name):
                 })
                 continue
 
-        passed = output == expected_output
+        # compare results based on order sensitivity
+        if (not order_sensitive and 
+            isinstance(output, list) and isinstance(expected_output, list)):
+            passed = sorted(output) == sorted(expected_output)
+        else:
+            passed = output == expected_output
+
         results.append({
             "input": input_data,
             "expected": expected_output,
