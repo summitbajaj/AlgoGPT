@@ -5,10 +5,18 @@ class TestCaseSchema(BaseModel):
     input_data: str
     expected_output: str
 
-class ExecutionRequest(BaseModel):
+class CodeExecutionRequest(BaseModel):
     code: str
     problem_id: int
 
-class ExecutionResponse(BaseModel):
+class CodeExecutionResponse(BaseModel):
     test_results: List[Dict[str, Any]]
     execution_time: float
+
+class ComplexityAnalysisRequest(BaseModel):
+    code: str
+    problem_id: int
+
+class ComplexityAnalysisResponse(BaseModel):
+    combined_complexity: str 
+    feedback: str
