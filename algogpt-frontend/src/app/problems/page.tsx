@@ -114,7 +114,7 @@ export default function ProblemsPage() {
               {isLoading ? (
                 <p>Loading problems...</p>
               ) : (
-                <table className="w-full">
+                <table className="w-full table-fixed">
                   <thead>
                     <tr className="border-b">
                       <th className="text-left p-2">Title</th>
