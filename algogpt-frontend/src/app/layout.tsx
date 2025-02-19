@@ -19,24 +19,27 @@ export default function RootLayout({
     <html lang="en">
       <body className={inter.className}>
         <div className="flex flex-col min-h-screen">
-          <header className="sticky top-0 z-50 w-full border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
-            <div className="container flex h-14 items-center">
-              <Link href="/" className="mr-6 flex items-center space-x-2">
-                <span className="text-xl font-bold">AlgoGPT</span>
+        <header className="sticky top-0 z-50 w-full border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
+          <div className="w-full flex h-14 items-center px-3 -ml-1">
+          {/* Logo Section */}
+            <Link href="/" className="flex items-center space-x-2">
+              <span className="text-xl font-bold">AlgoGPT</span>
+            </Link>
+
+            {/* Navigation Section */}
+            <nav className="flex items-center space-x-6 text-sm font-medium ml-8">
+              <Link href="/problems" className="transition-colors hover:text-foreground/80">
+                Problems
               </Link>
-              <nav className="flex items-center space-x-6 text-sm font-medium">
-                <Link href="/problems" className="transition-colors hover:text-foreground/80">
-                  Problems
-                </Link>
-                <Link href="/roadmap" className="transition-colors hover:text-foreground/80">
-                  Roadmap
-                </Link>
-                <Link href="/chat" className="transition-colors hover:text-foreground/80">
-                  AI Chat
-                </Link>
-              </nav>
-            </div>
-          </header>
+              <Link href="/roadmap" className="transition-colors hover:text-foreground/80">
+                Roadmap
+              </Link>
+              <Link href="/chat" className="transition-colors hover:text-foreground/80">
+                AI Chat
+              </Link>
+            </nav>
+          </div>
+        </header>
           <main className="flex-grow">{children}</main>
         </div>
       </body>
