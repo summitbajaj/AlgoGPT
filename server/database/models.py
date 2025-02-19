@@ -61,6 +61,7 @@ class TestCase(Base):
     # set order_sensitive to True by default, order matters
     order_sensitive = Column(BOOLEAN, nullable=False, default=True)
     benchmark_test_case = Column(BOOLEAN, nullable=False, default=False)
+    test_case_size = Column(Integer, nullable=True)
     problem = relationship("Problem", back_populates="test_cases")
 
 # ----- 6) EXAMPLE MODEL --------------------------------------------------
