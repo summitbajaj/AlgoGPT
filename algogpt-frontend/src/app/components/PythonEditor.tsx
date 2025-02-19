@@ -27,68 +27,6 @@ interface PythonEditorProps {
   initialCode?: string;
 }
 
-interface EditorAppProps {
-  wrapperConfig: WrapperConfig;
-  lspConnected: boolean;
-  onCodeChange: (code: string) => void;
-  editorWrapperRef: React.MutableRefObject<MonacoEditorLanguageClientWrapper | null>;
-}
-
-const EditorApp: React.FC<EditorAppProps> = ({
-  wrapperConfig,
-  lspConnected,
-  onCodeChange,
-  editorWrapperRef,
-}) => {
-  return (
-    <div style={{ height: '100%', padding: '5px' }}>
-      {!lspConnected && (
-        <div className="bg-yellow-500 text-black p-2 mb-2 rounded">
-          LSP connection failed. Editor running in basic mode.
-        </div>
-      )}
-      <MonacoEditorReactComp
-        wrapperConfig={wrapperConfig}
-        style={{ height: '100%' }}
-        onTextChanged={(textChanges: TextChanges) => {
-          if (textChanges.text) {
-            onCodeChange(textChanges.text);
-          }
-        }}
-        onLoad={(wrapper: MonacoEditorLanguageClientWrapper) => {
-          editorWrapperRef.current = wrapper;
-          console.log(`Loaded:\n${wrapper.reportStatus().join('\n')}`);
-          
-          const editor = wrapper.getEditor();
-          if (editor) {
-            setTimeout(() => {
-              const model = editor.getModel();
-              if (!model) return;
-        
-              const lines = model.getLinesContent();
-              let endLine = 0;
-              for (let i = 0; i < lines.length; i++) {
-                if (lines[i].startsWith("import") || lines[i].startsWith("from")) {
-                  endLine = i + 1;
-                } else if (endLine > 0) {
-                  break;
-                }
-              }
-              if (endLine > 1) {
-                editor.setSelection(new monaco.Selection(1, 1, endLine, 1));
-                editor.getAction("editor.fold")?.run();
-              }
-            }, 50);
-          }
-        }}
-        onError={(e) => {
-          console.error('Editor error:', e);
-        }}
-      />
-    </div>
-  );
-};
-
 export const PythonEditorComponent: React.FC<PythonEditorProps> = ({
   onExecutionComplete,
   initialCode = "",
@@ -107,10 +45,6 @@ export const PythonEditorComponent: React.FC<PythonEditorProps> = ({
   }, [code]);
 
   useEffect(() => {
-    editorRootRef.current = editorRoot;
-  }, [editorRoot]);
-
-  useEffect(() => {
     initialCodeRef.current = initialCode;
   }, [initialCode]);
 
@@ -127,7 +61,8 @@ export const PythonEditorComponent: React.FC<PythonEditorProps> = ({
   useEffect(() => {
     const handleRunCode = async () => {
       try {
-        const response = await runCode(code);
+        // Use the refs' code value to avoid missing dependency warning.
+        const response = await runCode(codeRef.current);
         console.log('API Response:', response);
         onExecutionComplete?.(response);
       } catch (error) {
@@ -161,7 +96,6 @@ export const PythonEditorComponent: React.FC<PythonEditorProps> = ({
       }
 
       const root = ReactDOM.createRoot(container);
-      setEditorRoot(root);
       editorRootRef.current = root;
 
       const App: React.FC = () => {
