@@ -1,9 +1,11 @@
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi import FastAPI, Depends
+from fastapi import FastAPI, Depends, HTTPException
 from sqlalchemy.orm import Session
 import requests
 from database.database import SessionLocal
 from database.models import Problem, TestCase, Example, Topic
+from schemas import CodeExecutionRequest, CodeExecutionResponse, ComplexityAnalysisRequest, ComplexityAnalysisResponse
+from helpers import get_all_test_cases, get_function_name, get_benchmark_test_cases
 from dotenv import load_dotenv
 import os
 
@@ -11,6 +13,9 @@ import os
 load_dotenv()
 
 app = FastAPI()
+
+EXECUTION_SERVER_URL = "http://code-runner:5000/run-code"
+ANALYZE_COMPLEXITY_URL = "http://code-runner:5000/analyze-complexity"
 
 # ✅ Enable CORS
 app.add_middleware(
@@ -72,23 +77,87 @@ def get_problem(problem_id: int, db: Session = Depends(get_db)):
 # 3️⃣ Fetch test cases for a problem
 # -------------------------------
 @app.get("/problems/{problem_id}/test-cases")
-def get_test_cases(problem_id: int, db: Session = Depends(get_db)):
+def fetch_test_cases(problem_id: int, db: Session = Depends(get_db)):
     test_cases = db.query(TestCase).filter(TestCase.problem_id == problem_id).all()
     return [
-        {"input": tc.input_data, "expected_output": tc.expected_output}
+        {"id": tc.id ,"input": tc.input_data, "expected_output": tc.expected_output}
         for tc in test_cases
     ]
 
 # -------------------------------
 # 4️⃣ Execute user code (Forwards to Flask Code Runner)
 # -------------------------------
-@app.post("/execute")
-def execute_code(request: dict):
-    user_code = request["code"]
+@app.post("/execute", response_model=CodeExecutionResponse)
+def execute_code(request: CodeExecutionRequest, db: Session = Depends(get_db)):
+    """Fetches test cases, forwards request to code runner, and returns results."""
 
-    # Forward request to Flask Code Runner
-    flask_url = "http://code-runner:5000/run-code" 
-    execution_request = {"code": user_code}
+    # Fetch test cases from the database
+    test_cases = get_all_test_cases(db, request.problem_id)
 
-    response = requests.post(flask_url, json=execution_request)
+    # Fetch function name from the database
+    function_name = get_function_name(db, request.problem_id)
+
+    if not test_cases:
+        raise HTTPException(status_code=404, detail="No test cases found for this problem")
+
+    # Send user code + test cases to the execution service
+    execution_payload = {
+        "code": request.code,
+        "test_cases": test_cases,
+        "function_name": function_name,
+    }
+
+    response = requests.post(EXECUTION_SERVER_URL, json=execution_payload)
+
+    if response.status_code != 200:
+        raise HTTPException(status_code=500, detail="Code execution service failed")
+
     return response.json()
+
+    # # Forward request to Flask Code Runner
+    # flask_url = "http://code-runner:5000/run-code" 
+    # execution_request = {"code": user_code}
+
+    # response = requests.post(flask_url, json=execution_request)
+    # return response.json()
+
+# -------------------------------
+# 5️⃣ Execute complexity analysis (Forwards to Flask Code Runner)
+# -------------------------------
+@app.post("/analyze_complexity", response_model=ComplexityAnalysisResponse)
+def analyze_complexity(request: ComplexityAnalysisRequest, db: Session = Depends(get_db)):
+    """Fetches test cases, forwards request to code runner, and returns results."""
+
+    # Fetch benchmark test cases from the database
+    benchmark_test_cases = get_benchmark_test_cases(db, request.problem_id)
+
+    # Fetch function name from the database
+    function_name = get_function_name(db, request.problem_id)
+
+    if not benchmark_test_cases:
+        raise HTTPException(status_code=404, detail="No test cases found for this problem")
+    
+    # Send user code + test cases to the execution service
+    execution_payload = {
+        "source_code": request.code,
+        "problem_id": request.problem_id,
+        "function_name": function_name,
+        "benchmark_cases": benchmark_test_cases,
+    }
+
+    response = requests.post(ANALYZE_COMPLEXITY_URL, json=execution_payload)
+
+    if response.status_code != 200:
+        raise HTTPException(status_code=500, detail="Code execution service failed")
+
+    response = response.json()
+
+    # Return only complexity & feedback
+    return ComplexityAnalysisResponse(
+        combined_complexity=response.get("combined_complexity", "Unknown Complexity"),
+        feedback=response.get("feedback", "No feedback available.")
+    )
+
+
+
+

@@ -1,6 +1,7 @@
 from sqlalchemy import Column, Integer, String, Text, Enum, ForeignKey, Table
 from sqlalchemy.orm import relationship
-from .base import Base
+from sqlalchemy.dialects.postgresql import JSONB, BOOLEAN
+from . import Base
 import enum
 
 # ----- 1) DIFFICULTY ENUM ------------------------------------------------
@@ -38,6 +39,7 @@ class Problem(Base):
     difficulty = Column(Enum(DifficultyLevel), nullable=False)
     constraints = Column(Text, nullable=True)
     starter_code = Column(Text, nullable=True)
+    function_name = Column(String, nullable=False)
 
     # Relationship to user-visible Examples
     examples = relationship("Example", back_populates="problem")
@@ -54,9 +56,12 @@ class TestCase(Base):
 
     id = Column(Integer, primary_key=True)
     problem_id = Column(Integer, ForeignKey("problems.id"), nullable=False)
-    input_data = Column(Text, nullable=False)
-    expected_output = Column(Text, nullable=False)
-
+    input_data = Column(JSONB, nullable=False)
+    expected_output = Column(JSONB, nullable=False)
+    # set order_sensitive to True by default, order matters
+    order_sensitive = Column(BOOLEAN, nullable=False, default=True)
+    benchmark_test_case = Column(BOOLEAN, nullable=False, default=False)
+    test_case_size = Column(Integer, nullable=True)
     problem = relationship("Problem", back_populates="test_cases")
 
 # ----- 6) EXAMPLE MODEL --------------------------------------------------
