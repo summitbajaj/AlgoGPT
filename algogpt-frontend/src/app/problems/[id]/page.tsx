@@ -21,7 +21,6 @@ import { Problem, ExecutionResult } from "./types";
 
 type MarkdownComponentProps<T extends HTMLElement> = DetailedHTMLProps<HTMLAttributes<T>, T>;
 
-
 // Helper functions
 const parseConstraints = (constraintsStr: string): string[] => {
   if (!constraintsStr) return [];
@@ -87,6 +86,17 @@ export default function ProblemPage() {
   const [isRunning, setIsRunning] = useState<boolean>(false);
   const [isLoading, setIsLoading] = useState<boolean>(true);
 
+  // Prevent body scrolling when component mounts
+  useEffect(() => {
+    // Lock scrolling on body
+    document.body.style.overflow = 'hidden';
+    
+    // Cleanup when component unmounts
+    return () => {
+      document.body.style.overflow = '';
+    };
+  }, []);
+
   useEffect(() => {
     const fetchProblem = async () => {
       try {
@@ -133,7 +143,7 @@ Execution Time: ${result.executionTime || "N/A"}ms`;
 
   if (isLoading) {
     return (
-      <div className="flex justify-center items-center h-screen">
+      <div className="fixed inset-0 flex justify-center items-center">
         <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-500"></div>
       </div>
     );
@@ -141,209 +151,170 @@ Execution Time: ${result.executionTime || "N/A"}ms`;
 
   if (!problem) {
     return (
-      <div className="flex justify-center items-center h-screen text-lg">
+      <div className="fixed inset-0 flex justify-center items-center text-lg">
         Problem not found
       </div>
     );
   }
 
   return (
-    <div className="grid grid-cols-2 gap-4 p-4 h-[calc(100vh-4rem)]">
-      {/* Left Panel */}
-      <div className="flex flex-col h-full overflow-auto pr-2">
-        <div className="flex items-center justify-between mb-4">
-          <h1 className="text-xl font-bold">
-            {problem.id}. {problem.title}
-          </h1>
-          <span
-            className={`px-2 py-1 text-sm rounded ${
-              problem.difficulty === "Easy"
-                ? "bg-green-200 text-green-800"
-                : problem.difficulty === "Medium"
-                ? "bg-yellow-200 text-yellow-800"
-                : "bg-red-200 text-red-800"
-            }`}
-          >
-            {problem.difficulty}
-          </span>
-        </div>
-
-        <Card className="flex-grow overflow-auto">
-          <Tabs value={activeTab} onValueChange={setActiveTab}>
-            <TabsList className="sticky top-0 z-10 w-full bg-background border-b rounded-none">
-              <TabsTrigger value="description">Description</TabsTrigger>
-              <TabsTrigger value="solution">Solution</TabsTrigger>
-              <TabsTrigger value="submissions">Submissions</TabsTrigger>
-            </TabsList>
-
-            <TabsContent value="description" className="p-4">
-              <div className="prose prose-slate dark:prose-invert max-w-none">
-                <ReactMarkdown
-                  remarkPlugins={[remarkGfm, remarkMath]}
-                  rehypePlugins={[rehypeKatex]}
-                  components={MarkdownComponents}
-                >
-                  {processDescriptionText(problem.description)}
-                </ReactMarkdown>
-
-                {/* Examples */}
-                {problem.examples.map((example, index) => (
-                  <div key={index} className="mb-6">
-                    <h3 className="text-lg font-medium mb-2">
-                      Example {index + 1}:
-                    </h3>
-                    <pre className="bg-slate-950 text-slate-50 p-4 rounded-lg overflow-auto text-sm">
-                      <div className="mb-2">
-                        <strong>Input:</strong>{" "}
-                        <ReactMarkdown
-                          remarkPlugins={[remarkGfm, remarkMath]}
-                          rehypePlugins={[rehypeKatex]}
-                        >
-                          {example.input}
-                        </ReactMarkdown>
-                      </div>
-                      <div className="mb-2">
-                        <strong>Output:</strong>{" "}
-                        <ReactMarkdown
-                          remarkPlugins={[remarkGfm, remarkMath]}
-                          rehypePlugins={[rehypeKatex]}
-                        >
-                          {example.output}
-                        </ReactMarkdown>
-                      </div>
-                      {example.explanation && (
-                        <div>
-                          <strong>Explanation:</strong>{" "}
-                          <ReactMarkdown
-                            remarkPlugins={[remarkGfm, remarkMath]}
-                            rehypePlugins={[rehypeKatex]}
-                          >
-                            {example.explanation}
-                          </ReactMarkdown>
-                        </div>
-                      )}
-                    </pre>
-                  </div>
-                ))}
-
-                {/* Constraints */}
-                {problem.constraints && (
-                  <div className="mb-6">
-                    <h3 className="text-lg font-medium mb-2">Constraints:</h3>
-                    <div className="bg-slate-950 p-4 rounded-lg">
-                      <ul className="list-none text-slate-50 text-sm space-y-1">
-                        {parseConstraints(problem.constraints).map(
-                          (constraint, index) => (
-                            <li key={index} className="flex items-start">
-                              <span className="mr-2">•</span>
-                              <span className="font-mono">
-                                <ReactMarkdown
-                                  remarkPlugins={[remarkGfm, remarkMath]}
-                                  rehypePlugins={[rehypeKatex]}
-                                >
-                                  {processConstraintText(constraint)}
-                                </ReactMarkdown>
-                              </span>
-                            </li>
-                          )
-                        )}
-                      </ul>
-                    </div>
-                  </div>
-                )}
-
-                {/* Topics */}
-                {problem.topics && problem.topics.length > 0 && (
-                  <div className="mb-6">
-                    <h3 className="text-lg font-medium mb-2">Topics:</h3>
-                    <div className="flex flex-wrap gap-2">
-                      {problem.topics.map((topic, index) => (
-                        <span
-                          key={index}
-                          className="px-3 py-1 bg-blue-100 text-blue-800 rounded-full text-sm font-medium"
-                        >
-                          {topic}
-                        </span>
-                      ))}
-                    </div>
-                  </div>
-                )}
-              </div>
-            </TabsContent>
-
-            <TabsContent value="solution" className="p-4">
-              <div className="prose dark:prose-invert">
-                <p>Solution will be available after you submit your answer.</p>
-              </div>
-            </TabsContent>
-
-            <TabsContent value="submissions" className="p-4">
-              <div className="prose dark:prose-invert">
-                <p>Your submission history will appear here.</p>
-              </div>
-            </TabsContent>
-          </Tabs>
-        </Card>
-      </div>
-
-      {/* Right Panel */}
-      <div className="flex flex-col h-full">
-        <div className="flex items-center justify-end mb-4">
-          <div className="flex gap-2">
-            <Button
-              id="button-run"
-              size="sm"
-              onClick={handleRun}
-              disabled={isRunning}
+    <div className="fixed inset-0 pt-16">
+      <div className="grid grid-cols-2 gap-4 h-full p-4 max-h-full overflow-hidden">
+        {/* Left Panel */}
+        <div className="flex flex-col max-h-full overflow-hidden">
+          <div className="flex items-center justify-between mb-4 shrink-0">
+            <h1 className="text-xl font-bold truncate">
+              {problem.id}. {problem.title}
+            </h1>
+            <span
+              className={`px-2 py-1 text-sm rounded shrink-0 ${
+                problem.difficulty === "Easy"
+                  ? "bg-green-200 text-green-800"
+                  : problem.difficulty === "Medium"
+                  ? "bg-yellow-200 text-yellow-800"
+                  : "bg-red-200 text-red-800"
+              }`}
             >
-              <PlayIcon className="w-4 h-4 mr-2" />
-              Run
-            </Button>
-            <Button size="sm" variant="default">
-              <CheckIcon className="w-4 h-4 mr-2" />
-              Submit
-            </Button>
+              {problem.difficulty}
+            </span>
           </div>
+
+          <Card className="flex-1 min-h-0 flex flex-col">
+            <Tabs value={activeTab} onValueChange={setActiveTab} className="h-full flex flex-col">
+              <TabsList className="shrink-0 w-full bg-background border-b rounded-none">
+                <TabsTrigger value="description">Description</TabsTrigger>
+                <TabsTrigger value="solution">Solution</TabsTrigger>
+                <TabsTrigger value="submissions">Submissions</TabsTrigger>
+              </TabsList>
+
+              <TabsContent value="description" className="p-0 flex-1 min-h-0 overflow-hidden">
+                <div className="h-full overflow-auto p-4">
+                  <div className="prose prose-slate dark:prose-invert max-w-none">
+                    <ReactMarkdown
+                      remarkPlugins={[remarkGfm, remarkMath]}
+                      rehypePlugins={[rehypeKatex]}
+                      components={MarkdownComponents}
+                    >
+                      {processDescriptionText(problem.description)}
+                    </ReactMarkdown>
+
+                    {/* Examples */}
+                    {problem.examples.map((example, index) => (
+                      <div key={index} className="mb-6">
+                        <h3 className="text-lg font-medium mb-2">Example {index + 1}:</h3>
+                        <pre className="bg-slate-950 text-slate-50 p-4 rounded-lg overflow-auto text-sm">
+                          <div className="mb-2">
+                            <strong>Input:</strong>{" "}
+                            <ReactMarkdown remarkPlugins={[remarkGfm, remarkMath]} rehypePlugins={[rehypeKatex]}>
+                              {example.input}
+                            </ReactMarkdown>
+                          </div>
+                          <div className="mb-2">
+                            <strong>Output:</strong>{" "}
+                            <ReactMarkdown remarkPlugins={[remarkGfm, remarkMath]} rehypePlugins={[rehypeKatex]}>
+                              {example.output}
+                            </ReactMarkdown>
+                          </div>
+                          {example.explanation && (
+                            <div>
+                              <strong>Explanation:</strong>{" "}
+                              <ReactMarkdown remarkPlugins={[remarkGfm, remarkMath]} rehypePlugins={[rehypeKatex]}>
+                                {example.explanation}
+                              </ReactMarkdown>
+                            </div>
+                          )}
+                        </pre>
+                      </div>
+                    ))}
+
+                    {/* Constraints Section */}
+                    {problem.constraints && (
+                      <div className="mb-6">
+                        <h3 className="text-lg font-medium mb-2">Constraints:</h3>
+                        <div className="bg-slate-950 p-4 rounded-lg">
+                          <ul className="list-none text-slate-50 text-sm space-y-1">
+                            {parseConstraints(problem.constraints).map((constraint, index) => (
+                              <li key={index} className="flex items-start">
+                                <span className="mr-2">•</span>
+                                <span className="font-mono">
+                                  <ReactMarkdown remarkPlugins={[remarkGfm, remarkMath]} rehypePlugins={[rehypeKatex]}>
+                                    {processConstraintText(constraint)}
+                                  </ReactMarkdown>
+                                </span>
+                              </li>
+                            ))}
+                          </ul>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              </TabsContent>
+              
+              <TabsContent value="solution" className="p-4 overflow-auto h-full">
+                <div className="text-center text-gray-500 italic">
+                  Solution content will appear here
+                </div>
+              </TabsContent>
+              
+              <TabsContent value="submissions" className="p-4 overflow-auto h-full">
+                <div className="text-center text-gray-500 italic">
+                  Submissions history will appear here
+                </div>
+              </TabsContent>
+            </Tabs>
+          </Card>
         </div>
 
-        <Card className="flex-grow flex flex-col h-[500px]">
-          <div className="flex-grow">
-            <div id="monaco-editor-root" style={{ height: "100%" }}>
-              <PythonEditorComponent 
-              onExecutionComplete={handleCodeExecution}
-              initialCode={problem.starter_code} />
+        {/* Right Panel */}
+        <div className="flex flex-col max-h-full overflow-hidden">
+          <div className="flex items-center justify-end mb-4 shrink-0">
+            <div className="flex gap-2">
+              <Button id="button-run" size="sm" onClick={handleRun} disabled={isRunning}>
+                <PlayIcon className="w-4 h-4 mr-2" />
+                Run
+              </Button>
+              <Button size="sm" variant="default">
+                <CheckIcon className="w-4 h-4 mr-2" />
+                Submit
+              </Button>
             </div>
           </div>
-        </Card>
 
-        <Card className="h-[200px] flex flex-col">
-          <div className="flex items-center justify-between border-b p-2">
-            <Tabs
-              value={`testcase-${activeTestCase}`}
-              onValueChange={(value) =>
-                setActiveTestCase(Number(value.split("-")[1]))
-              }
-            >
-              <TabsList>
-                {problem.examples.map((_, index) => (
-                  <TabsTrigger key={index} value={`testcase-${index}`}>
-                    Case {index + 1}
-                  </TabsTrigger>
-                ))}
-              </TabsList>
-            </Tabs>
-            <Button variant="ghost" size="sm">
-              <Maximize2Icon className="w-4 h-4" />
-            </Button>
-          </div>
-          <div className="flex-grow p-4 font-mono text-sm overflow-auto bg-black text-white">
-            <pre className="whitespace-pre-wrap m-0">
-              {isRunning
-                ? "Running test cases..."
-                : output[activeTestCase] || 'Click "Run" to execute the code.'}
-            </pre>
-          </div>
-        </Card>
+          {/* Code Editor */}
+          <Card className="flex-1 min-h-0 flex flex-col overflow-hidden">
+            <div className="h-full" id="monaco-editor-root">
+              <PythonEditorComponent 
+                onExecutionComplete={handleCodeExecution}
+                initialCode={problem.starter_code} 
+              />
+            </div>
+          </Card>
+
+          {/* Output panel */}
+          <Card className="mt-4 h-[200px] shrink-0 flex flex-col overflow-hidden">
+            <div className="flex items-center justify-between border-b p-2 shrink-0">
+              <Tabs value={`testcase-${activeTestCase}`} onValueChange={(value) => setActiveTestCase(Number(value.split("-")[1]))}>
+                <TabsList>
+                  {problem.examples.map((_, index) => (
+                    <TabsTrigger key={index} value={`testcase-${index}`}>
+                      Case {index + 1}
+                    </TabsTrigger>
+                  ))}
+                </TabsList>
+              </Tabs>
+              <Button variant="ghost" size="sm">
+                <Maximize2Icon className="w-4 h-4" />
+              </Button>
+            </div>
+            
+            <div className="flex-1 min-h-0 overflow-auto p-4 font-mono text-sm bg-black text-white">
+              <pre className="whitespace-pre-wrap m-0">
+                {isRunning ? "Running test cases..." : output[activeTestCase] || 'Click "Run" to execute the code.'}
+              </pre>
+            </div>
+          </Card>
+        </div>
       </div>
     </div>
   );
