@@ -35,17 +35,22 @@ type MarkdownComponentProps<T extends HTMLElement> = DetailedHTMLProps<
   T
 >;
 
+type CodeProps = React.HTMLAttributes<HTMLElement> & {
+  inline?: boolean;
+  children?: React.ReactNode;
+};
+
 const MarkdownComponents: Components = {
-  code: ({ inline, children, ...props }: any) => {
+  code: ({ inline, children, ...props }: CodeProps) => {
     if (inline) {
       return (
         <code
           className="
             bg-gray-100 
             text-gray-900
-            font-mono 
+            font-mono
             text-sm
-            px-1 
+            px-1
             py-[2px]
             rounded-md
             whitespace-nowrap
@@ -59,8 +64,6 @@ const MarkdownComponents: Components = {
         </code>
       );
     }
-
-    // For content-width code blocks
     return (
       <span className="inline-block">
         <pre className="bg-gray-100 text-gray-900 rounded-md px-2 py-[2px] font-mono text-sm">
@@ -87,7 +90,7 @@ const MarkdownComponents: Components = {
   ),
 
   pre: ({ children, ...props }: MarkdownComponentProps<HTMLPreElement>) => (
-    <span className="inline-block">
+    <span className="inline-block" {...props}>
       {children}
     </span>
   )
