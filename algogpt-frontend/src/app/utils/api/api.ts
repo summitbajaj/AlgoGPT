@@ -1,11 +1,13 @@
-export const executeCode = async (code: string, problemId: number) => {
+import { ExecuteCodeRequest } from "./types";
+
+export const executeCode = async (request: ExecuteCodeRequest) => {
     try {
         const response = await fetch('http://localhost:8000/execute', {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json',
             },
-            body: JSON.stringify({ code, problem_id: problemId }),
+            body: JSON.stringify(request),
         });
         const data = await response.json();
         return data;

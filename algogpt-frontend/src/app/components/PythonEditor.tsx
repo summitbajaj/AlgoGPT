@@ -13,8 +13,9 @@ import {
   WrapperConfig,
 } from 'monaco-editor-wrapper';
 import { createUserConfig } from '../config/config';
-import { executeCode } from '../utils/api';
+import { executeCode } from '../utils/api/api';
 import * as monaco from 'monaco-editor';
+import { ExecuteCodeRequest } from '../utils/api/types';
 
 interface ExecutionResult {
   error?: string;
@@ -54,8 +55,11 @@ export const PythonEditorComponent: React.FC<PythonEditorProps> = ({
   useEffect(() => {
     const handleRunCode = async () => {
       try {
-        const response = await executeCode(codeRef.current, problemId);
-        console.log('API Response:', response);
+        const request: ExecuteCodeRequest = {
+          code: codeRef.current,
+          problem_id: problemId,
+        };
+        const response = await executeCode(request);
         onExecutionComplete?.(response);
       } catch (error) {
         console.error('Failed to run code:', error);
