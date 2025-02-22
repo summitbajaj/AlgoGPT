@@ -13,7 +13,7 @@ import {
   WrapperConfig,
 } from 'monaco-editor-wrapper';
 import { createUserConfig } from '../config/config';
-import { runCode } from '../utils/api';
+import { executeCode } from '../utils/api';
 import * as monaco from 'monaco-editor';
 
 interface ExecutionResult {
@@ -25,11 +25,13 @@ interface ExecutionResult {
 interface PythonEditorProps {
   onExecutionComplete?: (result: ExecutionResult) => void;
   initialCode?: string;
+  problemId: number;
 }
 
 export const PythonEditorComponent: React.FC<PythonEditorProps> = ({
   onExecutionComplete,
   initialCode = "",
+  problemId
 }) => {
   const [code, setCode] = useState(initialCode);
   const [lspConnected, setLspConnected] = useState(true);
@@ -52,7 +54,7 @@ export const PythonEditorComponent: React.FC<PythonEditorProps> = ({
   useEffect(() => {
     const handleRunCode = async () => {
       try {
-        const response = await runCode(codeRef.current);
+        const response = await executeCode(codeRef.current, problemId);
         console.log('API Response:', response);
         onExecutionComplete?.(response);
       } catch (error) {
@@ -71,7 +73,7 @@ export const PythonEditorComponent: React.FC<PythonEditorProps> = ({
     return () => {
       runButton?.removeEventListener('click', handleRunCode);
     };
-  }, [onExecutionComplete]);
+  }, [onExecutionComplete, problemId]);
 
   // Initialize editor based on LSP connection status
   useEffect(() => {

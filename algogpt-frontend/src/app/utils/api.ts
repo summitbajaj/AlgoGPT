@@ -1,11 +1,11 @@
-export const runCode = async (code: string) => {
+export const executeCode = async (code: string, problemId: number) => {
     try {
-        const response = await fetch('http://localhost:5001/run-code', {
+        const response = await fetch('http://localhost:8000/execute', {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json',
             },
-            body: JSON.stringify({ code }),
+            body: JSON.stringify({ code, problem_id: problemId }),
         });
         const data = await response.json();
         return data;

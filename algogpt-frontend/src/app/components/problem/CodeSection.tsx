@@ -13,6 +13,7 @@ interface CodeSectionProps {
   onRun: () => void;
   onTestCaseChange: (index: number) => void;
   onExecutionComplete: (result: ExecutionResult) => void;
+  problemId: string;
 }
 
 export function CodeSection({
@@ -29,6 +30,7 @@ export function CodeSection({
       {/* Run/Submit buttons */}
       <div className="mb-4 flex justify-end gap-2">
         <Button
+          id = "button-run"
           onClick={onRun}
           disabled={isRunning}
           className="bg-black text-white hover:bg-neutral-800"
@@ -48,6 +50,7 @@ export function CodeSection({
           <PythonEditorComponent
             initialCode={problem.starter_code}
             onExecutionComplete={onExecutionComplete}
+            problemId={problem.id}
           />
         </div>
       </Card>

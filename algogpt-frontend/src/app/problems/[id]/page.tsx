@@ -89,6 +89,7 @@ Execution Time: ${result.executionTime || "N/A"}ms`);
           onRun={() => setIsRunning(true)}
           onTestCaseChange={setActiveTestCase}
           onExecutionComplete={handleCodeExecution}
+          problemId={params.id}
         />
       </div>
     </div>
