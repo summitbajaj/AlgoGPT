@@ -75,6 +75,28 @@ export const PythonEditorComponent: React.FC<PythonEditorProps> = ({
     };
   }, [onExecutionComplete, problemId]);
 
+  // Force editor reinitialization when problemId changes
+  useEffect(() => {
+    // Reset editor state
+    setEditorInitialized(false);
+    
+    // Clean up existing editor
+    if (wrapperRef.current) {
+      wrapperRef.current.dispose();
+      wrapperRef.current = null;
+    }
+    
+    // Clean up existing root
+    if (editorRootRef.current) {
+      editorRootRef.current.unmount();
+      editorRootRef.current = null;
+    }
+    
+    // Reset code to initial state
+    setCode(initialCode);
+    
+  }, [problemId, initialCode]);
+
   // Initialize editor based on LSP connection status
   useEffect(() => {
     if (editorInitialized) return;
