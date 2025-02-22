@@ -4,10 +4,11 @@ import React, { useState, useEffect } from "react";
 import { useParams } from "next/navigation";
 import { Card } from "@/components/ui/card";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
-import { Problem, ExecutionResult } from "./types";
+import { Problem } from "./types";
 import { ProblemHeader } from "@/app/components/problem/ProblemHeader";
 import { ProblemDescription } from "@/app/components/problem/ProblemDescription";
 import { CodeSection } from "@/app/components/problem/CodeSection";
+import { CodeExecutionResponse } from "@/app/utils/api/types";
 
 export default function ProblemPage() {
   const params = useParams() as { id: string };
@@ -17,6 +18,11 @@ export default function ProblemPage() {
   const [activeTab, setActiveTab] = useState("description");
   const [activeTestCase, setActiveTestCase] = useState(0);
   const [output, setOutput] = useState<string[]>([]);
+
+  const handleRun = () => {
+  setIsRunning(true);
+  // We won't do a setTimeout. We'll just rely on the code execution finishing.
+};
 
   useEffect(() => {
     const fetchData = async () => {
@@ -37,18 +43,28 @@ export default function ProblemPage() {
     if (params.id) fetchData();
   }, [params.id]);
 
-  const handleCodeExecution = (result: ExecutionResult) => {
-    if (!problem) return;
-    const newOutput = problem.examples.map((ex, idx) => `Test Case ${idx + 1}:
-Input: ${ex.input}
-Expected Output: ${ex.output}
-Your Output: ${result.output || "No output"}
-${result.error ? "Error: " + result.error : "Success"}
-Execution Time: ${result.executionTime || "N/A"}ms`);
-    setOutput(newOutput);
+  const handleCodeExecution = (result: CodeExecutionResponse) => {
     setIsRunning(false);
+    setOutput([JSON.stringify(result, null, 2)]);
+    if (!problem) return;
+  
+    const newOutput = problem.examples.map((ex, idx) => {
+      const testCaseResult = result.test_results[idx] || {}; // Get corresponding test case result
+      const output = testCaseResult.output || "No output"; // Adjust according to actual test result structure
+      const error = testCaseResult.error ? `Error: ${testCaseResult.error}` : "Success";
+  
+      return `Test Case ${idx + 1}:
+  Input: ${ex.input}
+  Expected Output: ${ex.output}
+  Your Output: ${output}
+  ${error}
+  Execution Time: ${result.execution_time || "N/A"}ms`;
+    });
+  
+    // Now newOutput contains the correctly formatted test case results
+    console.log(newOutput);
   };
-
+  
   if (isLoading) return <div className="flex items-center justify-center h-screen"><div className="animate-spin rounded-full h-8 w-8 border-b-2 border-gray-600" /></div>;
   if (!problem) return <div className="p-8 text-center text-lg">Problem not found</div>;
 

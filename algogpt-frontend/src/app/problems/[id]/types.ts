@@ -16,9 +16,3 @@ export interface Problem {
     topics: string[];
     starter_code: string;
 }
-  
-export interface ExecutionResult {
-    error?: string;
-    output?: string | null;
-    executionTime?: number | null;
-}

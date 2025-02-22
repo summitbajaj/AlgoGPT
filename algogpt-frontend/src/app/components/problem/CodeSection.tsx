@@ -3,7 +3,8 @@ import { Card } from "@/components/ui/card";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { PlayIcon, CheckIcon, Maximize2Icon } from "lucide-react";
 import { PythonEditorComponent } from "@/app/components/PythonEditor";
-import { Problem, ExecutionResult } from "../../problems/[id]/types";
+import { Problem } from "../../problems/[id]/types";
+import { CodeExecutionResponse } from "@/app/utils/api/types";
 
 interface CodeSectionProps {
   problem: Problem;
@@ -12,7 +13,7 @@ interface CodeSectionProps {
   output: string[];
   onRun: () => void;
   onTestCaseChange: (index: number) => void;
-  onExecutionComplete: (result: ExecutionResult) => void;
+  onExecutionComplete: (result: CodeExecutionResponse) => void;
   problemId: string;
 }
 
@@ -83,7 +84,7 @@ export function CodeSection({
           <pre className="whitespace-pre-wrap">
             {isRunning
               ? "Running test cases..."
-              : output[activeTestCase] || 'Click "Run" to execute.'}
+              : output[0] || 'Click "Run" to execute.'}
           </pre>
         </div>
       </Card>

@@ -1,6 +1,6 @@
-import { ExecuteCodeRequest } from "./types";
+import { CodeExecutionRequest, CodeExecutionResponse } from "./types";
 
-export const executeCode = async (request: ExecuteCodeRequest) => {
+export const executeCode = async (request: CodeExecutionRequest): Promise<CodeExecutionResponse> => {
     try {
         const response = await fetch('http://localhost:8000/execute', {
             method: 'POST',
@@ -9,10 +9,15 @@ export const executeCode = async (request: ExecuteCodeRequest) => {
             },
             body: JSON.stringify(request),
         });
-        const data = await response.json();
+
+        if (!response.ok) {
+            throw new Error(`Server error: ${response.status}`);
+        }
+
+        const data: CodeExecutionResponse = await response.json();
         return data;
     } catch (error) {
         console.error('Error running code:', error);
-        return { error: 'Failed to run code' };
+        throw new Error('Failed to run code');
     }
 };

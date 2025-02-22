@@ -15,16 +15,10 @@ import {
 import { createUserConfig } from '../config/config';
 import { executeCode } from '../utils/api/api';
 import * as monaco from 'monaco-editor';
-import { ExecuteCodeRequest } from '../utils/api/types';
-
-interface ExecutionResult {
-  error?: string;
-  output?: string | null;
-  executionTime?: number | null;
-}
+import { CodeExecutionRequest, CodeExecutionResponse } from '../utils/api/types';
 
 interface PythonEditorProps {
-  onExecutionComplete?: (result: ExecutionResult) => void;
+  onExecutionComplete?: (result: CodeExecutionResponse) => void;
   initialCode?: string;
   problemId: number;
 }
@@ -55,7 +49,7 @@ export const PythonEditorComponent: React.FC<PythonEditorProps> = ({
   useEffect(() => {
     const handleRunCode = async () => {
       try {
-        const request: ExecuteCodeRequest = {
+        const request: CodeExecutionRequest = {
           code: codeRef.current,
           problem_id: problemId,
         };
@@ -63,21 +57,23 @@ export const PythonEditorComponent: React.FC<PythonEditorProps> = ({
         onExecutionComplete?.(response);
       } catch (error) {
         console.error('Failed to run code:', error);
+        
+        // Provide a default CodeExecutionResponse on error
         onExecutionComplete?.({
-          error: error instanceof Error ? error.message : 'An error occurred',
-          output: null,
-          executionTime: null,
+          test_results: [],
+          execution_time: 0,
         });
       }
     };
-
+  
     const runButton = document.querySelector('#button-run');
     runButton?.addEventListener('click', handleRunCode);
-
+  
     return () => {
       runButton?.removeEventListener('click', handleRunCode);
     };
   }, [onExecutionComplete, problemId]);
+  
 
   // Force editor reinitialization when problemId changes
   useEffect(() => {
