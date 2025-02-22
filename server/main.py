@@ -114,13 +114,6 @@ def execute_code(request: CodeExecutionRequest, db: Session = Depends(get_db)):
 
     return response.json()
 
-    # # Forward request to Flask Code Runner
-    # flask_url = "http://code-runner:5000/run-code" 
-    # execution_request = {"code": user_code}
-
-    # response = requests.post(flask_url, json=execution_request)
-    # return response.json()
-
 # -------------------------------
 # 5️⃣ Execute complexity analysis (Forwards to Flask Code Runner)
 # -------------------------------
