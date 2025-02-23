@@ -1,10 +1,11 @@
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
-import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { PlayIcon, CheckIcon, Maximize2Icon } from "lucide-react";
 import { PythonEditorComponent } from "@/app/components/PythonEditor";
 import { Problem } from "../../problems/[id]/types";
 import { CodeExecutionResponse } from "@/app/utils/api/types";
+import { PanelGroup, Panel, PanelResizeHandle } from "react-resizable-panels";
 
 interface CodeSectionProps {
   problem: Problem;
@@ -27,11 +28,11 @@ export function CodeSection({
   onExecutionComplete,
 }: CodeSectionProps) {
   return (
-    <div className="h-full flex flex-col p-4">
+    <div className="h-full w-full flex flex-col p-4">
       {/* Run/Submit buttons */}
       <div className="mb-4 flex justify-end gap-2">
         <Button
-          id = "button-run"
+          id="button-run"
           onClick={onRun}
           disabled={isRunning}
           className="bg-black text-white hover:bg-neutral-800"
@@ -45,49 +46,76 @@ export function CodeSection({
         </Button>
       </div>
 
-      {/* Editor */}
-      <Card className="flex-grow min-h-0">
-        <div className="h-full" id="monaco-editor-root">
-          <PythonEditorComponent
-            initialCode={problem.starter_code}
-            onExecutionComplete={onExecutionComplete}
-            problemId={problem.id}
-          />
-        </div>
-      </Card>
+      {/* Container with resizable panels */}
+      <div className="flex-grow min-h-0 flex flex-col w-full">
+        <PanelGroup direction="vertical" className="flex-1">
+          <Panel defaultSize={70} minSize={30}>
+            <Card className="h-full overflow-hidden">
+              <div className="h-full w-full" id="monaco-editor-root">
+                <PythonEditorComponent
+                  initialCode={problem.starter_code}
+                  onExecutionComplete={onExecutionComplete}
+                  problemId={problem.id}
+                />
+              </div>
+            </Card>
+          </Panel>
 
-      {/* Output section */}
-      <Card className="shrink-0">
-        <div className="border-b p-2 flex items-center justify-between">
-          <Tabs
-            value={`case-${activeTestCase}`}
-            onValueChange={(val) =>
-              onTestCaseChange(parseInt(val.replace("case-", ""), 10))
-            }
-          >
-            <TabsList>
-              {problem.examples.map((_, i) => (
-                <TabsTrigger key={i} value={`case-${i}`}>
-                  Case {i + 1}
-                </TabsTrigger>
-              ))}
-            </TabsList>
-          </Tabs>
-          <button
-            className="p-1 text-gray-500 hover:text-gray-700"
-            title="Maximize"
-          >
-            <Maximize2Icon className="w-4 h-4" />
-          </button>
-        </div>
-        <div className="h-32 bg-black text-white p-4 font-mono text-sm overflow-auto">
-          <pre className="whitespace-pre-wrap">
-            {isRunning
-              ? "Running test cases..."
-              : output[0] || 'Click "Run" to execute.'}
-          </pre>
-        </div>
-      </Card>
+          <PanelResizeHandle className="w-full h-2 bg-gray-200 hover:bg-gray-300 cursor-row-resize" />
+
+          <Panel defaultSize={30} minSize={20}>
+            <Card className="h-full overflow-hidden">
+              <Tabs
+                value={`case-${activeTestCase}`}
+                onValueChange={(val) =>
+                  onTestCaseChange(parseInt(val.replace("case-", ""), 10))
+                }
+                className="flex flex-col h-full"
+              >
+                <div className="border-b p-2 flex items-center justify-between">
+                  <TabsList className="rounded-md">
+                    {problem.examples.map((_, i) => (
+                      <TabsTrigger key={i} value={`case-${i}`} className="rounded-md">
+                        Case {i + 1}
+                      </TabsTrigger>
+                    ))}
+                  </TabsList>
+                  <button
+                    className="p-1 text-gray-500 hover:text-gray-700"
+                    title="Maximize"
+                  >
+                    <Maximize2Icon className="w-4 h-4" />
+                  </button>
+                </div>
+                <div className="flex-grow overflow-auto p-4 bg-gray-100 text-black rounded-b-lg">
+                  {problem.examples.map((example, i) => (
+                    <TabsContent key={i} value={`case-${i}`}>
+                      <div className="mb-2">
+                        <strong>Input:</strong>
+                        <pre className="bg-white p-2 rounded border">
+                          {example.input}
+                        </pre>
+                      </div>
+                      <div className="mb-2">
+                        <strong>Expected Output:</strong>
+                        <pre className="bg-white p-2 rounded border">
+                          {example.output}
+                        </pre>
+                      </div>
+                      <div className="mb-2">
+                        <strong>Your Output:</strong>
+                        <pre className="bg-white p-2 rounded border">
+                          {isRunning ? "Running test case..." : output[i] || "N/A"}
+                        </pre>
+                      </div>
+                    </TabsContent>
+                  ))}
+                </div>
+              </Tabs>
+            </Card>
+          </Panel>
+        </PanelGroup>
+      </div>
     </div>
   );
 }

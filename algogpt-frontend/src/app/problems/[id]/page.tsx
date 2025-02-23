@@ -111,7 +111,7 @@ Execution Time: ${result.execution_time || "N/A"}ms`;
           </div>
         </Panel>
 
-        <PanelResizeHandle className="w-2 bg-gray-200 hover:bg-gray-300 transition-colors" />
+        <PanelResizeHandle className="w-2 h-full bg-gray-200 hover:bg-gray-300 transition-colors" />
 
         <Panel minSize={30}>
           <CodeSection
