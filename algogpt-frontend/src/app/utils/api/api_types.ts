@@ -127,6 +127,36 @@ export interface components {
             /** Feedback */
             feedback: string;
         };
+        /** ExampleTestCaseModel */
+        ExampleTestCaseModel: {
+            /** Test Case Id */
+            test_case_id: number;
+            /** Input Data */
+            input_data: Record<string, never>;
+            /** Expected Output */
+            expected_output: unknown;
+            /** Explanation */
+            explanation: string;
+        };
+        /** GetProblemResponse */
+        GetProblemResponse: {
+            /** Problem Id */
+            problem_id: number;
+            /** Title */
+            title: string;
+            /** Description */
+            description: string;
+            /** Difficulty */
+            difficulty: string;
+            /** Constraints */
+            constraints: string;
+            /** Topics */
+            topics: string[];
+            /** Examples */
+            examples: components["schemas"]["ExampleTestCaseModel"][];
+            /** Starter Code */
+            starter_code: string;
+        };
         /** HTTPValidationError */
         HTTPValidationError: {
             /** Detail */
@@ -187,7 +217,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": unknown;
+                    "application/json": components["schemas"]["GetProblemResponse"];
                 };
             };
             /** @description Validation Error */

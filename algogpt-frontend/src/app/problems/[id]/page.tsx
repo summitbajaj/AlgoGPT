@@ -5,7 +5,7 @@ import { useParams } from "next/navigation";
 import { Panel, PanelGroup, PanelResizeHandle } from "react-resizable-panels";
 import { Card } from "@/components/ui/card";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
-import { Problem } from "./types";
+import { Problem } from "@/app/utils/api/types";
 import { ProblemHeader } from "@/app/components/problem/ProblemHeader";
 import { ProblemDescription } from "@/app/components/problem/ProblemDescription";
 import { CodeSection } from "@/app/components/problem/CodeSection";
@@ -54,8 +54,8 @@ export default function ProblemPage() {
       const error = testCaseResult.error ? `Error: ${testCaseResult.error}` : "Success";
 
       return `Test Case ${idx + 1}:
-Input: ${ex.input}
-Expected Output: ${ex.output}
+Input: ${ex.input_data}
+Expected Output: ${ex.expected_output}
 Your Output: ${output}
 ${error}
 Execution Time: ${result.execution_time || "N/A"}ms`;

@@ -1,4 +1,4 @@
-import { Problem } from "../../problems/[id]/types";
+import { Problem, ExampleTestCaseModel } from "@/app/utils/api/types";
 import { MarkdownComponents } from "./MarkdownComponent";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
@@ -20,15 +20,19 @@ export function ProblemDescription({ problem }: { problem: Problem }) {
       </div>
 
       {/* Examples */}
-      {problem.examples.map((ex, idx) => (
+      {problem.examples.map((ex: ExampleTestCaseModel, idx) => (
         <div key={idx} className="mt-6">
           <h3 className="text-lg font-semibold mb-2">Example {idx + 1}:</h3>
           <div className="bg-white border border-gray-200 p-4 rounded text-sm">
+          <p className="mb-2">
+            <strong>Input:</strong> {Object.entries(ex.input_data as Record<string, unknown>).map(([key, value]) => (
+              `${key} = ${typeof value === 'string' ? `"${value}"` : Array.isArray(value) ? `[${(value as unknown[]).join(',')}]` : value}`
+            )).join(', ')}
+          </p>
             <p className="mb-2">
-              <strong>Input:</strong> {ex.input}
-            </p>
-            <p className="mb-2">
-              <strong>Output:</strong> {ex.output}
+              <strong>Output:</strong> {Array.isArray(ex.expected_output) 
+                ? `[${(ex.expected_output as unknown[]).join(',')}]` 
+                : String(ex.expected_output)}
             </p>
             {ex.explanation && (
               <p>

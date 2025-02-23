@@ -3,7 +3,7 @@ import { Card } from "@/components/ui/card";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { PlayIcon, CheckIcon, Maximize2Icon } from "lucide-react";
 import { PythonEditorComponent } from "@/app/components/PythonEditor";
-import { Problem } from "../../problems/[id]/types";
+import { Problem } from "@/app/utils/api/types";
 import { CodeExecutionResponse } from "@/app/utils/api/types";
 import { PanelGroup, Panel, PanelResizeHandle } from "react-resizable-panels";
 
@@ -55,7 +55,7 @@ export function CodeSection({
                 <PythonEditorComponent
                   initialCode={problem.starter_code}
                   onExecutionComplete={onExecutionComplete}
-                  problemId={problem.id}
+                  problemId={problem.problem_id}
                 />
               </div>
             </Card>
@@ -92,15 +92,16 @@ export function CodeSection({
                     <TabsContent key={i} value={`case-${i}`}>
                       <div className="mb-2">
                         <strong>Input:</strong>
-                        <pre className="bg-white p-2 rounded border">
-                          {example.input}
-                        </pre>
-                      </div>
-                      <div className="mb-2">
-                        <strong>Expected Output:</strong>
-                        <pre className="bg-white p-2 rounded border">
-                          {example.output}
-                        </pre>
+                        <div className="bg-white p-2 rounded border">
+                          {Object.entries(example.input_data).map(([key, value]) => (
+                            <div key={key} className="mb-2">
+                              <span className="font-semibold">{key}:</span>
+                              <pre className="ml-2 mt-1">
+                                {typeof value === 'string' ? `"${value}"` : Array.isArray(value) ? `[${(value as unknown[]).join(', ')}]` : value}
+                              </pre>
+                            </div>
+                          ))}
+                        </div>
                       </div>
                       <div className="mb-2">
                         <strong>Your Output:</strong>

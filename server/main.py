@@ -4,7 +4,7 @@ from sqlalchemy.orm import Session
 import requests
 from database.database import SessionLocal
 from database.models import Problem, TestCase, Example, Topic
-from schemas import CodeExecutionRequest, CodeExecutionResponse, ComplexityAnalysisRequest, ComplexityAnalysisResponse
+from schemas import CodeExecutionRequest, CodeExecutionResponse, ComplexityAnalysisRequest, ComplexityAnalysisResponse, GetProblemResponse, ExampleTestCaseModel
 from helpers import get_all_test_cases, get_function_name, get_benchmark_test_cases
 from dotenv import load_dotenv
 import os
@@ -53,25 +53,48 @@ def list_problems(db: Session = Depends(get_db)):
 # -------------------------------
 # 2️⃣ Fetch a single problem by ID
 # -------------------------------
-@app.get("/problems/{problem_id}")
+from fastapi import HTTPException
+from sqlalchemy.orm import Session
+
+@app.get("/problems/{problem_id}", response_model=GetProblemResponse)
 def get_problem(problem_id: int, db: Session = Depends(get_db)):
     problem = db.query(Problem).filter(Problem.id == problem_id).first()
-    if not problem:
-        return {"error": "Problem not found"}
 
-    return {
-        "id": problem.id,
-        "title": problem.title,
-        "description": problem.description,
-        "difficulty": problem.difficulty,
-        "constraints": problem.constraints,
-        "topics": [t.name for t in problem.topics],
-        "examples": [
-            {"input": ex.input_data, "output": ex.output_data, "explanation": ex.explanation}
-            for ex in problem.examples
+    if not problem:
+        raise HTTPException(status_code=404, detail="Problem not found")
+
+    # Fetch all test_case_ids from the examples table
+    example_test_case_ids = {ex.test_case_id: ex.explanation for ex in problem.examples}
+
+    # Fetch test cases that match the problem_id and test_case_ids
+    test_cases = (
+        db.query(TestCase)
+        .filter(TestCase.problem_id == problem_id, TestCase.id.in_(example_test_case_ids.keys()))
+        .all()
+    )
+
+    # Map test case ID to input/output
+    test_case_map = {tc.id: tc for tc in test_cases}
+
+    return GetProblemResponse(
+        problem_id=problem.id,
+        title=problem.title,
+        description=problem.description,
+        difficulty=problem.difficulty,
+        constraints=problem.constraints,
+        topics=[t.name for t in problem.topics],
+        starter_code=problem.starter_code,
+        examples=[
+            ExampleTestCaseModel(
+                test_case_id=tc_id,  # From example
+                input_data=test_case_map[tc_id].input_data if tc_id in test_case_map else {},
+                expected_output=test_case_map[tc_id].expected_output if tc_id in test_case_map else {},
+                explanation=example_test_case_ids[tc_id],  # From examples table
+            )
+            for tc_id in example_test_case_ids.keys()
         ],
-        "starter_code": problem.starter_code,
-    }
+    )
+
 
 # -------------------------------
 # 3️⃣ Fetch test cases for a problem
