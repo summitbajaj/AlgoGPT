@@ -58,11 +58,15 @@ class TestCase(Base):
     problem_id = Column(Integer, ForeignKey("problems.id"), nullable=False)
     input_data = Column(JSONB, nullable=False)
     expected_output = Column(JSONB, nullable=False)
-    # set order_sensitive to True by default, order matters
     order_sensitive = Column(BOOLEAN, nullable=False, default=True)
     benchmark_test_case = Column(BOOLEAN, nullable=False, default=False)
     test_case_size = Column(Integer, nullable=True)
+
+    # Relationship back to Problem
     problem = relationship("Problem", back_populates="test_cases")
+
+    # Relationship to Example (one-to-many)
+    examples = relationship("Example", back_populates="test_case")
 
 # ----- 6) EXAMPLE MODEL --------------------------------------------------
 class Example(Base):
@@ -70,8 +74,15 @@ class Example(Base):
 
     id = Column(Integer, primary_key=True)
     problem_id = Column(Integer, ForeignKey("problems.id"), nullable=False)
+    test_case_id = Column(Integer, ForeignKey("test_cases.id"), nullable=False, unique=True)
+
     input_data = Column(Text, nullable=False)
     output_data = Column(Text, nullable=False)
     explanation = Column(Text, nullable=False)
 
+    # Relationship back to Problem
     problem = relationship("Problem", back_populates="examples")
+
+    # Relationship to TestCase (many-to-one)
+    # NOTE: no 'unique=True' here, so multiple Example rows can share a single test_case_id
+    test_case = relationship("TestCase", back_populates="examples")
