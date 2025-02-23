@@ -98,3 +98,24 @@ body {
   margin: 0 auto;
   padding: 1rem;
 }
+
+/* For react-resizable-panels */
+[data-panel-group-direction="horizontal"] {
+  overflow: hidden;
+}
+
+[data-panel-resize-handle-id] {
+  background: #e2e2e2;
+  width: 4px;
+  cursor: col-resize;
+  transition: all 0.2s ease;
+}
+
+[data-panel-resize-handle-id]:hover {
+  background: #ccc;
+}
+
+/* For panel content */
+[data-panel] {
+  height: 100%;
+}

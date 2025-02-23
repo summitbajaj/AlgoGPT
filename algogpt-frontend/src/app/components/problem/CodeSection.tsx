@@ -27,7 +27,7 @@ export function CodeSection({
   onExecutionComplete,
 }: CodeSectionProps) {
   return (
-    <div className="overflow-auto p-4 flex flex-col">
+    <div className="h-full flex flex-col p-4">
       {/* Run/Submit buttons */}
       <div className="mb-4 flex justify-end gap-2">
         <Button
@@ -46,7 +46,7 @@ export function CodeSection({
       </div>
 
       {/* Editor */}
-      <Card className="flex-1 mb-4 overflow-hidden">
+      <Card className="flex-grow min-h-0">
         <div className="h-full" id="monaco-editor-root">
           <PythonEditorComponent
             initialCode={problem.starter_code}

@@ -274,5 +274,7 @@ export const PythonEditorComponent: React.FC<PythonEditorProps> = ({
     };
   }, []);
 
-  return null;
+  return (
+    <div style={{ height: '100%', width: '100%' }} id="monaco-editor-root" />
+  );
 };
