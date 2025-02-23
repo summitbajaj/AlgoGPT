@@ -134,3 +134,12 @@ body {
   display: flex;
   flex-direction: column;
 }
+
+.editor-textarea {
+  font-family: Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+  border-radius: 4px;
+  padding: 8px;
+  width: 100%;
+  min-height: 100px;
+  resize: vertical; 
+}

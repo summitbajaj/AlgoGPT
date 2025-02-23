@@ -6,6 +6,7 @@ import { PythonEditorComponent } from "@/app/components/PythonEditor";
 import { Problem } from "@/app/utils/api/types";
 import { CodeExecutionResponse } from "@/app/utils/api/types";
 import { PanelGroup, Panel, PanelResizeHandle } from "react-resizable-panels";
+import InteractiveInput from "./InteractiveInput";
 
 interface CodeSectionProps {
   problem: Problem;
@@ -88,29 +89,29 @@ export function CodeSection({
                   </button>
                 </div>
                 <div className="flex-grow overflow-auto p-4 bg-gray-100 text-black rounded-b-lg">
-                  {problem.examples.map((example, i) => (
-                    <TabsContent key={i} value={`case-${i}`}>
-                      <div className="mb-2">
-                        <strong>Input:</strong>
-                        <div className="bg-white p-2 rounded border">
-                          {Object.entries(example.input_data).map(([key, value]) => (
-                            <div key={key} className="mb-2">
-                              <span className="font-semibold">{key}:</span>
-                              <pre className="ml-2 mt-1">
-                                {typeof value === 'string' ? `"${value}"` : Array.isArray(value) ? `[${(value as unknown[]).join(', ')}]` : value}
-                              </pre>
-                            </div>
-                          ))}
+                  {problem.examples.map((example, i) => {
+                    return (
+                      <TabsContent key={i} value={`case-${i}`}>
+                        <div className="mb-2">
+                          <strong className="block mb-1">Input:</strong>
+                          <InteractiveInput
+                            inputData={example.input_data}
+                            onChange={(newData) => {
+                              // Handle the input changes here
+                              console.log('New input data:', newData);
+                            }}
+                          />
                         </div>
-                      </div>
-                      <div className="mb-2">
-                        <strong>Your Output:</strong>
-                        <pre className="bg-white p-2 rounded border">
-                          {isRunning ? "Running test case..." : output[i] || "N/A"}
-                        </pre>
-                      </div>
-                    </TabsContent>
-                  ))}
+
+                        <div className="mb-2">
+                          <strong>Your Output:</strong>
+                          <pre className="bg-white p-2 rounded border">
+                            {isRunning ? "Running test case..." : output[i] || "N/A"}
+                          </pre>
+                        </div>
+                      </TabsContent>
+                    );
+                  })}
                 </div>
               </Tabs>
             </Card>
