@@ -56,7 +56,7 @@ services:
     environment:
       - PYTHONUNBUFFERED=1
     volumes:
-      - ./shared_resources:/server/shared_resources
+      - ./shared_resources:/code-runner/shared_resources
 
 networks:
   app-network:
