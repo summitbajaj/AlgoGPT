@@ -22,7 +22,7 @@ app = FastAPI()
 # TODO: change name for proper url
 EXECUTION_SERVER_URL = "http://code-runner:5000/run-code"
 ANALYZE_COMPLEXITY_URL = "http://code-runner:5000/analyze-complexity"
-RUN_CODE_URL = "http://code-runner:5000/user-run-code"
+RUN_CODE_URL = "http://code-runner:5000/run-user-tests"
 
 # ✅ Enable CORS
 app.add_middleware(
@@ -185,7 +185,6 @@ def analyze_complexity(request: ComplexityAnalysisRequest, db: Session = Depends
 # -------------------------------
 # Runs userCode against test cases provided by the user and returns the results
 # -------------------------------
-# TODO: Add response model
 @app.post("/run-code", response_model=PostRunCodeResponse)
 def run_code(request: PostRunCodeRequest, db: Session = Depends(get_db)):
     """
@@ -210,13 +209,13 @@ def run_code(request: PostRunCodeRequest, db: Session = Depends(get_db)):
     
     # Send user code + test cases to the execution service
     execution_payload = RunCodeExecutionPayload(
-        source_code=request.code,
+        source_code=request.source_code,
         problem_id=request.problem_id,
         function_name=function_name,
         test_cases=request.test_cases,
     )
 
-    response = requests.post(RUN_CODE_URL, json=execution_payload)
+    response = requests.post(RUN_CODE_URL, json=execution_payload.dict())
 
     if response.status_code != 200:
         raise HTTPException(status_code=500, detail="Code execution service failed")
@@ -226,7 +225,3 @@ def run_code(request: PostRunCodeRequest, db: Session = Depends(get_db)):
         problem_id=request.problem_id,
         test_results=response_data["test_results"]
     )
-
-
-
-

@@ -9,8 +9,8 @@ RUN pip install --no-cache-dir -r requirements.txt
 # Copy only the necessary files
 COPY . .
 
-# Expose the port Flask will run on
+# Expose the port FastAPI will run on
 EXPOSE 5000
 
-# Run with gunicorn for better security and performance
-CMD ["gunicorn", "--bind", "0.0.0.0:5000", "app:app"]
+# Run with gunicorn and uvicorn workers for better performance
+CMD ["python", "-m", "uvicorn", "codeExecution:app", "--host", "0.0.0.0", "--port", "5000"]

@@ -48,7 +48,6 @@ class PostRunCodeRequest(BaseModel):
     test_cases: List[RunCodeTestCase]
 
 class PostRunCodeResponse(BaseModel):
-    problem_id: int
     test_results: List[RunCodeTestCaseResult]
     
 class RunCodeExecutionPayload(PostRunCodeRequest):
