@@ -31,6 +31,8 @@ services:
       dockerfile: Dockerfile
     ports:
       - "8000:8000"
+    volumes:
+      - ./shared_resources:/server/shared_resources
     environment:
       - DATABASE_URL=postgresql://algogpt_admin:password@host.docker.internal:5432/algogpt_database
       - CODE_RUNNER_URL=http://code-runner:5000
@@ -53,6 +55,8 @@ services:
       - app-network
     environment:
       - PYTHONUNBUFFERED=1
+    volumes:
+      - ./shared_resources:/server/shared_resources
 
 networks:
   app-network:
