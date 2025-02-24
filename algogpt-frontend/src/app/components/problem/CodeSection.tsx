@@ -6,7 +6,7 @@ import { PythonEditorComponent } from "@/app/components/PythonEditor";
 import { Problem } from "@/app/utils/api/types";
 import { CodeExecutionResponse } from "@/app/utils/api/types";
 import { PanelGroup, Panel, PanelResizeHandle } from "react-resizable-panels";
-import InteractiveInput from "./InteractiveInput";
+import InteractiveInput, { InputData } from "./InteractiveInput";
 
 interface CodeSectionProps {
   problem: Problem;
@@ -17,6 +17,8 @@ interface CodeSectionProps {
   onTestCaseChange: (index: number) => void;
   onExecutionComplete: (result: CodeExecutionResponse) => void;
   problemId: string;
+  onTestCaseInputChange?: (index: number, newData: InputData) => void;
+  testCaseInputs: InputData[];
 }
 
 export function CodeSection({
@@ -27,6 +29,8 @@ export function CodeSection({
   onRun,
   onTestCaseChange,
   onExecutionComplete,
+  onTestCaseInputChange,
+  testCaseInputs,
 }: CodeSectionProps) {
   return (
     <div className="h-full w-full flex flex-col p-4">
@@ -95,10 +99,9 @@ export function CodeSection({
                         <div className="mb-2">
                           <strong className="block mb-1">Input:</strong>
                           <InteractiveInput
-                            inputData={example.input_data}
+                            inputData={testCaseInputs[i] || example.input_data}
                             onChange={(newData) => {
-                              // Handle the input changes here
-                              console.log('New input data:', newData);
+                              onTestCaseInputChange?.(i, newData);
                             }}
                           />
                         </div>

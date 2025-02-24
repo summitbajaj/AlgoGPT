@@ -10,18 +10,30 @@ import { ProblemHeader } from "@/app/components/problem/ProblemHeader";
 import { ProblemDescription } from "@/app/components/problem/ProblemDescription";
 import { CodeSection } from "@/app/components/problem/CodeSection";
 import { CodeExecutionResponse } from "@/app/utils/api/types";
+import { InputData } from "@/app/components/problem/InteractiveInput";
+
+// Removed unused interface Params
 
 export default function ProblemPage() {
-  const params = useParams() as { id: string };
+  const params = useParams<{ id: string }>();
   const [problem, setProblem] = useState<Problem | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [isRunning, setIsRunning] = useState(false);
   const [activeTab, setActiveTab] = useState("description");
   const [activeTestCase, setActiveTestCase] = useState(0);
   const [output, setOutput] = useState<string[]>([]);
+  const [testCaseInputs, setTestCaseInputs] = useState<InputData[]>([]);
 
   const handleRun = () => {
-    setIsRunning(true);
+    /// Transform each test case input
+    const transformedTestCases = testCaseInputs.map((tc) => {
+      const transformed: Record<string, unknown> = {};
+      for (const key in tc) {
+        transformed[key] = parseInputValue(tc[key]);
+      }
+      return transformed;
+    });
+    console.log("Parsed test case inputs:", transformedTestCases);
   };
 
   useEffect(() => {
@@ -32,6 +44,8 @@ export default function ProblemPage() {
         const data: Problem = await res.json();
         setProblem(data);
         setOutput(Array(data.examples.length).fill(""));
+        // initialize testCaseInputs state
+        setTestCaseInputs(data.examples.map((ex) => ex.input_data));
       } catch (err) {
         console.error(err);
         setProblem(null);
@@ -51,17 +65,28 @@ export default function ProblemPage() {
     const newOutput = problem.examples.map((ex, idx) => {
       const testCaseResult = result.test_results[idx] || {};
       const output = testCaseResult.output || "No output";
-      const error = testCaseResult.error ? `Error: ${testCaseResult.error}` : "Success";
+      const error = testCaseResult.error
+        ? `Error: ${testCaseResult.error}`
+        : "Success";
 
       return `Test Case ${idx + 1}:
-Input: ${ex.input_data}
-Expected Output: ${ex.expected_output}
-Your Output: ${output}
-${error}
-Execution Time: ${result.execution_time || "N/A"}ms`;
+        Input: ${JSON.stringify(ex.input_data)}
+        Expected Output: ${ex.expected_output}
+        Your Output: ${output}
+        ${error}
+        Execution Time: ${result.execution_time || "N/A"}ms`;
     });
 
     console.log(newOutput);
+  };
+
+  // new callback for updating test case inputs
+  const handleTestCaseInputChange = (index: number, newData: InputData) => {
+    setTestCaseInputs((prev) => {
+      const updated = [...prev];
+      updated[index] = newData;
+      return updated;
+    });
   };
 
   if (isLoading) {
@@ -123,9 +148,23 @@ Execution Time: ${result.execution_time || "N/A"}ms`;
             onTestCaseChange={setActiveTestCase}
             onExecutionComplete={handleCodeExecution}
             problemId={params.id}
+            onTestCaseInputChange={handleTestCaseInputChange}
+            testCaseInputs={testCaseInputs}
           />
         </Panel>
       </PanelGroup>
     </div>
   );
+}
+
+function parseInputValue(value: unknown) {
+  if (typeof value === "string") {
+    try {
+      return JSON.parse(value);
+    } catch {
+      // if parsing fails, return the raw string
+      return value;
+    }
+  }
+  return value;
 }
