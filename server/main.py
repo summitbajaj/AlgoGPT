@@ -4,18 +4,25 @@ from sqlalchemy.orm import Session
 import requests
 from database.database import SessionLocal
 from database.models import Problem, TestCase, Example, Topic
-from schemas import CodeExecutionRequest, CodeExecutionResponse, ComplexityAnalysisRequest, ComplexityAnalysisResponse, GetProblemResponse, ExampleTestCaseModel
 from helpers import get_all_test_cases, get_function_name, get_benchmark_test_cases
 from dotenv import load_dotenv
 import os
+import sys
+
+# Add shared_resources to Python path
+sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "shared_resources")))
+
+from shared_resources.schemas import CodeExecutionRequest, CodeExecutionResponse, ComplexityAnalysisRequest, ComplexityAnalysisResponse, GetProblemResponse, ExampleTestCaseModel, PostRunCodeRequest, RunCodeExecutionPayload,PostRunCodeResponse
 
 # Load environment variables from .env file
 load_dotenv()
 
 app = FastAPI()
 
+# TODO: change name for proper url
 EXECUTION_SERVER_URL = "http://code-runner:5000/run-code"
 ANALYZE_COMPLEXITY_URL = "http://code-runner:5000/analyze-complexity"
+RUN_CODE_URL = "http://code-runner:5000/user-run-code"
 
 # ✅ Enable CORS
 app.add_middleware(
@@ -107,6 +114,7 @@ def fetch_test_cases(problem_id: int, db: Session = Depends(get_db)):
         for tc in test_cases
     ]
 
+
 # -------------------------------
 # 4️⃣ Execute user code (Forwards to Flask Code Runner)
 # -------------------------------
@@ -172,6 +180,51 @@ def analyze_complexity(request: ComplexityAnalysisRequest, db: Session = Depends
     return ComplexityAnalysisResponse(
         combined_complexity=response.get("combined_complexity", "Unknown Complexity"),
         feedback=response.get("feedback", "No feedback available.")
+    )
+
+# -------------------------------
+# Runs userCode against test cases provided by the user and returns the results
+# -------------------------------
+# TODO: Add response model
+@app.post("/run-code", response_model=PostRunCodeResponse)
+def run_code(request: PostRunCodeRequest, db: Session = Depends(get_db)):
+    """
+    Handles run code execution requests.
+
+    - Receives the user-submitted code, problem ID, and test cases.
+    - Forwards the request to the code execution engine.
+    - Retrieves the execution results and returns them to the client.
+
+    Args:
+        request (PostRunCodeRequest): The request payload containing the code, problem ID, and test cases.
+        db (Session): The database session dependency for querying/storing execution results.
+
+    Returns:
+        JSON response with execution results.
+    """ 
+    # Fetch function name from the database
+    function_name = get_function_name(db, request.problem_id)
+
+    if not function_name:
+        raise HTTPException(status_code=404, detail="Function name not found for this problem")
+    
+    # Send user code + test cases to the execution service
+    execution_payload = RunCodeExecutionPayload(
+        source_code=request.code,
+        problem_id=request.problem_id,
+        function_name=function_name,
+        test_cases=request.test_cases,
+    )
+
+    response = requests.post(RUN_CODE_URL, json=execution_payload)
+
+    if response.status_code != 200:
+        raise HTTPException(status_code=500, detail="Code execution service failed")
+    
+    response_data = response.json()
+    return PostRunCodeResponse(
+        problem_id=request.problem_id,
+        test_results=response_data["test_results"]
     )
 
 

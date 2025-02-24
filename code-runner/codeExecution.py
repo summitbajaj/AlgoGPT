@@ -1,6 +1,12 @@
 from flask import Flask, request, jsonify
 from flask_cors import CORS
 import time
+import sys
+import os
+
+# Add shared_resources to Python path
+sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "shared_resources")))
+from shared_resources.schemas import RunCodeExecutionPayload, PostRunCodeResponse
 
 # Import the benchmark-based complexity analysis function
 from complexity_analysis import combine_complexity_analysis

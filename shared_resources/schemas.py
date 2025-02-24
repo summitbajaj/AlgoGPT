@@ -34,3 +34,22 @@ class GetProblemResponse(BaseModel):
     topics: List[str]
     examples: List[ExampleTestCaseModel]
     starter_code: str
+
+class RunCodeTestCase(BaseModel):
+    test_case_id: int
+    input: Dict[str, Any] 
+
+class RunCodeTestCaseResult(RunCodeTestCase):
+    output: Any
+
+class PostRunCodeRequest(BaseModel):
+    source_code: str
+    problem_id: int
+    test_cases: List[RunCodeTestCase]
+
+class PostRunCodeResponse(BaseModel):
+    problem_id: int
+    test_results: List[RunCodeTestCaseResult]
+    
+class RunCodeExecutionPayload(PostRunCodeRequest):
+    function_name: str
