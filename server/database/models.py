@@ -75,9 +75,7 @@ class Example(Base):
     id = Column(Integer, primary_key=True)
     problem_id = Column(Integer, ForeignKey("problems.id"), nullable=False)
     test_case_id = Column(Integer, ForeignKey("test_cases.id"), nullable=False, unique=True)
-
-    input_data = Column(Text, nullable=False)
-    output_data = Column(Text, nullable=False)
+    
     explanation = Column(Text, nullable=False)
 
     # Relationship back to Problem
