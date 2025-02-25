@@ -45,3 +45,15 @@ export const createDefaultWorkspaceFile = (workspaceFile: Uri, workspacePath: st
         )
     );
 };
+
+export function parseInputValue(value: unknown) {
+    if (typeof value === "string") {
+      try {
+        return JSON.parse(value);
+      } catch {
+        // if parsing fails, return the raw string
+        return value;
+      }
+    }
+    return value;
+  }

@@ -92,3 +92,53 @@ body {
     @apply bg-background text-foreground;
   }
 }
+
+.problem-container {
+  max-width: 800px;
+  margin: 0 auto;
+  padding: 1rem;
+}
+
+/* For react-resizable-panels */
+[data-panel-group-direction="horizontal"] {
+  overflow: hidden;
+}
+
+[data-panel-resize-handle-id] {
+  background: #e2e2e2;
+  width: 4px;
+  cursor: col-resize;
+  transition: all 0.2s ease;
+}
+
+[data-panel-resize-handle-id]:hover {
+  background: #ccc;
+}
+
+/* For panel content */
+[data-panel] {
+  height: 100%;
+}
+
+[data-panel-group-direction="vertical"] {
+  flex-direction: column;
+  width: 100%;
+}
+
+[data-panel-resize-handle-id] {
+  flex: 0 0 auto;
+}
+
+[data-panel] {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+}
+
+.editor-textarea {
+  font-family: Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+  border-radius: 4px;
+  padding: 8px;
+  width: 100%;
+  resize: none; 
+}

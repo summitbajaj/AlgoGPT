@@ -31,6 +31,8 @@ services:
       dockerfile: Dockerfile
     ports:
       - "8000:8000"
+    volumes:
+      - ./shared_resources:/server/shared_resources
     environment:
       - DATABASE_URL=postgresql://algogpt_admin:password@host.docker.internal:5432/algogpt_database
       - CODE_RUNNER_URL=http://code-runner:5000
@@ -48,11 +50,13 @@ services:
       dockerfile: Dockerfile
     ports:
       - "5001:5000"
-    command: ["gunicorn", "-w", "4", "-b", "0.0.0.0:5000", "codeExecution:app"]
+    command: ["python", "-m", "uvicorn", "codeExecution:app", "--host", "0.0.0.0", "--port", "5000"]
     networks:
       - app-network
     environment:
       - PYTHONUNBUFFERED=1
+    volumes:
+      - ./shared_resources:/code-runner/shared_resources
 
 networks:
   app-network:

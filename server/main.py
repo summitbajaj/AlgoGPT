@@ -4,18 +4,25 @@ from sqlalchemy.orm import Session
 import requests
 from database.database import SessionLocal
 from database.models import Problem, TestCase, Example, Topic
-from schemas import CodeExecutionRequest, CodeExecutionResponse, ComplexityAnalysisRequest, ComplexityAnalysisResponse
 from helpers import get_all_test_cases, get_function_name, get_benchmark_test_cases
 from dotenv import load_dotenv
 import os
+import sys
+
+# Add shared_resources to Python path
+sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "shared_resources")))
+
+from shared_resources.schemas import CodeExecutionRequest, CodeExecutionResponse, ComplexityAnalysisRequest, ComplexityAnalysisResponse, GetProblemResponse, ExampleTestCaseModel, PostRunCodeRequest, RunCodeExecutionPayload,PostRunCodeResponse
 
 # Load environment variables from .env file
 load_dotenv()
 
 app = FastAPI()
 
+# TODO: change name for proper url
 EXECUTION_SERVER_URL = "http://code-runner:5000/run-code"
 ANALYZE_COMPLEXITY_URL = "http://code-runner:5000/analyze-complexity"
+RUN_CODE_URL = "http://code-runner:5000/run-user-tests"
 
 # ✅ Enable CORS
 app.add_middleware(
@@ -53,25 +60,48 @@ def list_problems(db: Session = Depends(get_db)):
 # -------------------------------
 # 2️⃣ Fetch a single problem by ID
 # -------------------------------
-@app.get("/problems/{problem_id}")
+from fastapi import HTTPException
+from sqlalchemy.orm import Session
+
+@app.get("/problems/{problem_id}", response_model=GetProblemResponse)
 def get_problem(problem_id: int, db: Session = Depends(get_db)):
     problem = db.query(Problem).filter(Problem.id == problem_id).first()
-    if not problem:
-        return {"error": "Problem not found"}
 
-    return {
-        "id": problem.id,
-        "title": problem.title,
-        "description": problem.description,
-        "difficulty": problem.difficulty,
-        "constraints": problem.constraints,
-        "topics": [t.name for t in problem.topics],
-        "examples": [
-            {"input": ex.input_data, "output": ex.output_data, "explanation": ex.explanation}
-            for ex in problem.examples
+    if not problem:
+        raise HTTPException(status_code=404, detail="Problem not found")
+
+    # Fetch all test_case_ids from the examples table
+    example_test_case_ids = {ex.test_case_id: ex.explanation for ex in problem.examples}
+
+    # Fetch test cases that match the problem_id and test_case_ids
+    test_cases = (
+        db.query(TestCase)
+        .filter(TestCase.problem_id == problem_id, TestCase.id.in_(example_test_case_ids.keys()))
+        .all()
+    )
+
+    # Map test case ID to input/output
+    test_case_map = {tc.id: tc for tc in test_cases}
+
+    return GetProblemResponse(
+        problem_id=problem.id,
+        title=problem.title,
+        description=problem.description,
+        difficulty=problem.difficulty,
+        constraints=problem.constraints,
+        topics=[t.name for t in problem.topics],
+        starter_code=problem.starter_code,
+        examples=[
+            ExampleTestCaseModel(
+                test_case_id=tc_id,  # From example
+                input_data=test_case_map[tc_id].input_data if tc_id in test_case_map else {},
+                expected_output=test_case_map[tc_id].expected_output if tc_id in test_case_map else {},
+                explanation=example_test_case_ids[tc_id],  # From examples table
+            )
+            for tc_id in example_test_case_ids.keys()
         ],
-        "starter_code": problem.starter_code,
-    }
+    )
+
 
 # -------------------------------
 # 3️⃣ Fetch test cases for a problem
@@ -83,6 +113,7 @@ def fetch_test_cases(problem_id: int, db: Session = Depends(get_db)):
         {"id": tc.id ,"input": tc.input_data, "expected_output": tc.expected_output}
         for tc in test_cases
     ]
+
 
 # -------------------------------
 # 4️⃣ Execute user code (Forwards to Flask Code Runner)
@@ -113,13 +144,6 @@ def execute_code(request: CodeExecutionRequest, db: Session = Depends(get_db)):
         raise HTTPException(status_code=500, detail="Code execution service failed")
 
     return response.json()
-
-    # # Forward request to Flask Code Runner
-    # flask_url = "http://code-runner:5000/run-code" 
-    # execution_request = {"code": user_code}
-
-    # response = requests.post(flask_url, json=execution_request)
-    # return response.json()
 
 # -------------------------------
 # 5️⃣ Execute complexity analysis (Forwards to Flask Code Runner)
@@ -158,6 +182,46 @@ def analyze_complexity(request: ComplexityAnalysisRequest, db: Session = Depends
         feedback=response.get("feedback", "No feedback available.")
     )
 
+# -------------------------------
+# Runs userCode against test cases provided by the user and returns the results
+# -------------------------------
+@app.post("/run-code", response_model=PostRunCodeResponse)
+def run_code(request: PostRunCodeRequest, db: Session = Depends(get_db)):
+    """
+    Handles run code execution requests.
 
+    - Receives the user-submitted code, problem ID, and test cases.
+    - Forwards the request to the code execution engine.
+    - Retrieves the execution results and returns them to the client.
 
+    Args:
+        request (PostRunCodeRequest): The request payload containing the code, problem ID, and test cases.
+        db (Session): The database session dependency for querying/storing execution results.
 
+    Returns:
+        JSON response with execution results.
+    """ 
+    # Fetch function name from the database
+    function_name = get_function_name(db, request.problem_id)
+
+    if not function_name:
+        raise HTTPException(status_code=404, detail="Function name not found for this problem")
+    
+    # Send user code + test cases to the execution service
+    execution_payload = RunCodeExecutionPayload(
+        source_code=request.source_code,
+        problem_id=request.problem_id,
+        function_name=function_name,
+        test_cases=request.test_cases,
+    )
+
+    response = requests.post(RUN_CODE_URL, json=execution_payload.dict())
+
+    if response.status_code != 200:
+        raise HTTPException(status_code=500, detail="Code execution service failed")
+    
+    response_data = response.json()
+    return PostRunCodeResponse(
+        problem_id=request.problem_id,
+        test_results=response_data["test_results"]
+    )

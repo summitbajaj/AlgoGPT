@@ -13,23 +13,22 @@ import {
   WrapperConfig,
 } from 'monaco-editor-wrapper';
 import { createUserConfig } from '../config/config';
-import { runCode } from '../utils/api';
+import { runCode } from '../utils/api/api';
 import * as monaco from 'monaco-editor';
-
-interface ExecutionResult {
-  error?: string;
-  output?: string | null;
-  executionTime?: number | null;
-}
+import {PostRunCodeRequest, PostRunCodeResponse, RunCodeTestCase } from '../utils/api/types';
 
 interface PythonEditorProps {
-  onExecutionComplete?: (result: ExecutionResult) => void;
+  onRunCodeComplete?: (result: PostRunCodeResponse) => void;
   initialCode?: string;
+  problemId: number;
+  testCaseInputs: RunCodeTestCase[];
 }
 
 export const PythonEditorComponent: React.FC<PythonEditorProps> = ({
-  onExecutionComplete,
+  onRunCodeComplete: onExecutionComplete,
   initialCode = "",
+  problemId,
+  testCaseInputs
 }) => {
   const [code, setCode] = useState(initialCode);
   const [lspConnected, setLspConnected] = useState(true);
@@ -52,26 +51,53 @@ export const PythonEditorComponent: React.FC<PythonEditorProps> = ({
   useEffect(() => {
     const handleRunCode = async () => {
       try {
-        const response = await runCode(codeRef.current);
-        console.log('API Response:', response);
+        const request: PostRunCodeRequest = {
+          source_code: codeRef.current,
+          problem_id: problemId,
+          test_cases: testCaseInputs,
+        };
+        const response = await runCode(request);
         onExecutionComplete?.(response);
       } catch (error) {
         console.error('Failed to run code:', error);
+        
+        // Provide a default CodeExecutionResponse on error
         onExecutionComplete?.({
-          error: error instanceof Error ? error.message : 'An error occurred',
-          output: null,
-          executionTime: null,
+          test_results: [],
         });
       }
     };
-
+  
     const runButton = document.querySelector('#button-run');
     runButton?.addEventListener('click', handleRunCode);
-
+  
     return () => {
       runButton?.removeEventListener('click', handleRunCode);
     };
-  }, [onExecutionComplete]);
+  }, [onExecutionComplete, problemId, testCaseInputs]);
+  
+
+  // Force editor reinitialization when problemId changes
+  useEffect(() => {
+    // Reset editor state
+    setEditorInitialized(false);
+    
+    // Clean up existing editor
+    if (wrapperRef.current) {
+      wrapperRef.current.dispose();
+      wrapperRef.current = null;
+    }
+    
+    // Clean up existing root
+    if (editorRootRef.current) {
+      editorRootRef.current.unmount();
+      editorRootRef.current = null;
+    }
+    
+    // Reset code to initial state
+    setCode(initialCode);
+    
+  }, [problemId, initialCode]);
 
   // Initialize editor based on LSP connection status
   useEffect(() => {
@@ -250,5 +276,7 @@ export const PythonEditorComponent: React.FC<PythonEditorProps> = ({
     };
   }, []);
 
-  return null;
+  return (
+    <div style={{ height: '100%', width: '100%' }} id="monaco-editor-root" />
+  );
 };

@@ -1,5 +1,6 @@
-flask
-flask-cors
 gunicorn
 numpy
 scipy
+fastapi
+gunicorn
+uvicorn
