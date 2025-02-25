@@ -9,7 +9,7 @@ import { Problem } from "@/app/utils/api/types";
 import { ProblemHeader } from "@/app/components/problem/ProblemHeader";
 import { ProblemDescription } from "@/app/components/problem/ProblemDescription";
 import { CodeSection } from "@/app/components/problem/CodeSection";
-import { PostRunCodeResponse } from "@/app/utils/api/types";
+import { PostRunCodeResponse, RunCodeTestCaseResult } from "@/app/utils/api/types";
 import { InputData } from "@/app/components/problem/InteractiveInput";
 import { parseInputValue } from "@/app/utils/utils";
 
@@ -62,20 +62,22 @@ export default function ProblemPage() {
 
   const handleRunCodeExecution = (result: PostRunCodeResponse) => {
     setIsRunning(false);
-    setOutput([JSON.stringify(result, null, 2)]);
     if (!problem) return;
-
+  
+    // Create an output array for each test case based on its test_case_id.
     const newOutput = problem.examples.map((ex, idx) => {
-      const testCaseResult = result.test_results[idx] || {};
-      const output = testCaseResult.output || "No output";
-
-      return `Test Case ${idx + 1}:
-        Input: ${JSON.stringify(ex.input_data)}
-        Your Output: ${output}`;
+      // Find the corresponding test result and cast it to the proper type
+      const testCaseResult = result.test_results.find(
+        (tr) => tr.test_case_id === idx
+      ) as RunCodeTestCaseResult | undefined;
+      const outputValue = testCaseResult?.output ?? "No output";
+    
+      return `${JSON.stringify(outputValue)}`;
     });
 
-    console.log(newOutput);
+    setOutput(newOutput);
   };
+  
 
   // new callback for updating test case inputs
   const handleTestCaseInputChange = (index: number, newData: InputData) => {

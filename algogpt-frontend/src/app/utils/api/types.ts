@@ -10,3 +10,4 @@ export type ExampleTestCaseModel = components["schemas"]["ExampleTestCaseModel"]
 export type PostRunCodeRequest = components["schemas"]["PostRunCodeRequest"];
 export type PostRunCodeResponse = components["schemas"]["PostRunCodeResponse"];
 export type RunCodeTestCase = components["schemas"]["RunCodeTestCase"];
+export type RunCodeTestCaseResult = components["schemas"]["RunCodeTestCaseResult"];

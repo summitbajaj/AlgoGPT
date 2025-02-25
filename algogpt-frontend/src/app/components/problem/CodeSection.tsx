@@ -1,3 +1,4 @@
+import React, { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
@@ -22,6 +23,8 @@ interface CodeSectionProps {
   testCaseInputs: InputData[];
 }
 
+// local state to track whether the user has run the code
+
 export function CodeSection({
   problem,
   isRunning,
@@ -33,16 +36,24 @@ export function CodeSection({
   onTestCaseInputChange,
   testCaseInputs,
 }: CodeSectionProps) {
+
+  const [hasRun, setHasRun] = useState(false);
+
   return (
     <div className="h-full w-full flex flex-col p-4">
       {/* Run/Submit buttons */}
       <div className="mb-4 flex justify-end gap-2">
-        <Button
+      <Button
           id="button-run"
-          onClick={onRun}
+          onClick={() => {
+            // Mark that the user has now run the code
+            setHasRun(true);
+            // Then call the parent-provided onRun logic
+            onRun();
+          }}
           disabled={isRunning}
           className="bg-black text-white hover:bg-neutral-800"
-        >
+      > 
           <PlayIcon className="w-4 h-4 mr-2" />
           Run
         </Button>
@@ -117,13 +128,16 @@ export function CodeSection({
                             }}
                           />
                         </div>
-
-                        <div className="mb-2">
-                          <strong>Your Output:</strong>
-                          <pre className="bg-white p-2 rounded border">
-                            {isRunning ? "Running test case..." : output[i] || "N/A"}
-                          </pre>
-                        </div>
+                        {hasRun && (
+                          <div className="mb-2">
+                            <strong className="block mb-1">Your Output:</strong>
+                            <pre className="bg-white p-2 rounded border">
+                              {isRunning 
+                                ? "Running test case..." 
+                                : output[i] || ""}
+                            </pre>
+                          </div>
+                        )}
                       </TabsContent>
                     );
                   })}
