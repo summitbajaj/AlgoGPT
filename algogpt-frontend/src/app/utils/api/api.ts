@@ -1,8 +1,8 @@
-import { CodeExecutionRequest, CodeExecutionResponse } from "./types";
+import {PostRunCodeRequest, PostRunCodeResponse } from './types';
 
-export const executeCode = async (request: CodeExecutionRequest): Promise<CodeExecutionResponse> => {
+export const runCode = async (request: PostRunCodeRequest): Promise<PostRunCodeResponse> => {
     try {
-        const response = await fetch('http://localhost:8000/execute', {
+        const response = await fetch('http://localhost:8000/run-code', {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json',
@@ -14,7 +14,7 @@ export const executeCode = async (request: CodeExecutionRequest): Promise<CodeEx
             throw new Error(`Server error: ${response.status}`);
         }
 
-        const data: CodeExecutionResponse = await response.json();
+        const data: PostRunCodeResponse = await response.json();
         return data;
     } catch (error) {
         console.error('Error running code:', error);

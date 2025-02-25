@@ -13,20 +13,22 @@ import {
   WrapperConfig,
 } from 'monaco-editor-wrapper';
 import { createUserConfig } from '../config/config';
-import { executeCode } from '../utils/api/api';
+import { runCode } from '../utils/api/api';
 import * as monaco from 'monaco-editor';
-import { CodeExecutionRequest, CodeExecutionResponse } from '../utils/api/types';
+import {PostRunCodeRequest, PostRunCodeResponse, RunCodeTestCase } from '../utils/api/types';
 
 interface PythonEditorProps {
-  onExecutionComplete?: (result: CodeExecutionResponse) => void;
+  onRunCodeComplete?: (result: PostRunCodeResponse) => void;
   initialCode?: string;
   problemId: number;
+  testCaseInputs: RunCodeTestCase[];
 }
 
 export const PythonEditorComponent: React.FC<PythonEditorProps> = ({
-  onExecutionComplete,
+  onRunCodeComplete: onExecutionComplete,
   initialCode = "",
-  problemId
+  problemId,
+  testCaseInputs
 }) => {
   const [code, setCode] = useState(initialCode);
   const [lspConnected, setLspConnected] = useState(true);
@@ -49,11 +51,12 @@ export const PythonEditorComponent: React.FC<PythonEditorProps> = ({
   useEffect(() => {
     const handleRunCode = async () => {
       try {
-        const request: CodeExecutionRequest = {
-          code: codeRef.current,
+        const request: PostRunCodeRequest = {
+          source_code: codeRef.current,
           problem_id: problemId,
+          test_cases: testCaseInputs,
         };
-        const response = await executeCode(request);
+        const response = await runCode(request);
         onExecutionComplete?.(response);
       } catch (error) {
         console.error('Failed to run code:', error);
@@ -61,7 +64,6 @@ export const PythonEditorComponent: React.FC<PythonEditorProps> = ({
         // Provide a default CodeExecutionResponse on error
         onExecutionComplete?.({
           test_results: [],
-          execution_time: 0,
         });
       }
     };

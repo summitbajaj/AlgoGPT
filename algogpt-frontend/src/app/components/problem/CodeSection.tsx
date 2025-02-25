@@ -4,9 +4,10 @@ import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { PlayIcon, CheckIcon, Maximize2Icon } from "lucide-react";
 import { PythonEditorComponent } from "@/app/components/PythonEditor";
 import { Problem } from "@/app/utils/api/types";
-import { CodeExecutionResponse } from "@/app/utils/api/types";
+import { PostRunCodeResponse } from "@/app/utils/api/types";
 import { PanelGroup, Panel, PanelResizeHandle } from "react-resizable-panels";
 import InteractiveInput, { InputData } from "./InteractiveInput";
+import { parseInputValue } from "@/app/utils/utils";
 
 interface CodeSectionProps {
   problem: Problem;
@@ -15,7 +16,7 @@ interface CodeSectionProps {
   output: string[];
   onRun: () => void;
   onTestCaseChange: (index: number) => void;
-  onExecutionComplete: (result: CodeExecutionResponse) => void;
+  onExecutionComplete: (result: PostRunCodeResponse ) => void;
   problemId: string;
   onTestCaseInputChange?: (index: number, newData: InputData) => void;
   testCaseInputs: InputData[];
@@ -59,8 +60,19 @@ export function CodeSection({
               <div className="h-full w-full" id="monaco-editor-root">
                 <PythonEditorComponent
                   initialCode={problem.starter_code}
-                  onExecutionComplete={onExecutionComplete}
+                  onRunCodeComplete={onExecutionComplete}
                   problemId={problem.problem_id}
+                  testCaseInputs={testCaseInputs.map((tc, index) => {
+                    // Transform each key in the test case input
+                    const parsed: Record<string, unknown> = {};
+                    for (const key in tc) {
+                      parsed[key] = parseInputValue(tc[key]);
+                    }
+                    return {
+                      test_case_id: index,
+                      input: parsed as Record<string, never>,
+                    };
+                  })}
                 />
               </div>
             </Card>
