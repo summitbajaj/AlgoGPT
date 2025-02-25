@@ -3,16 +3,19 @@ from fastapi import FastAPI, Depends, HTTPException
 from sqlalchemy.orm import Session
 import requests
 from database.database import SessionLocal
-from database.models import Problem, TestCase, Example, Topic
-from helpers import get_all_test_cases, get_function_name, get_benchmark_test_cases
+from database.models import Problem, TestCase
+from helpers import get_all_test_cases, get_function_name, get_benchmark_test_cases, get_problem_context_for_ai
 from dotenv import load_dotenv
 import os
+from ai_model import graph
+from langchain_core.messages import HumanMessage
+from shared_resources.schemas import ChatRequest
 import sys
 
 # Add shared_resources to Python path
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "shared_resources")))
 
-from shared_resources.schemas import CodeExecutionRequest, CodeExecutionResponse, ComplexityAnalysisRequest, ComplexityAnalysisResponse, GetProblemResponse, ExampleTestCaseModel, PostRunCodeRequest, RunCodeExecutionPayload,PostRunCodeResponse
+from shared_resources.schemas import CodeExecutionRequest, CodeExecutionResponse, ComplexityAnalysisRequest, ComplexityAnalysisResponse, GetProblemResponse, ExampleTestCaseModel, PostRunCodeRequest, RunCodeExecutionPayload,PostRunCodeResponse, ChatRequest
 
 # Load environment variables from .env file
 load_dotenv()
@@ -225,3 +228,50 @@ def run_code(request: PostRunCodeRequest, db: Session = Depends(get_db)):
         problem_id=request.problem_id,
         test_results=response_data["test_results"]
     )
+
+# -------------------------------
+# Post request to communicate with AI Chatbot for a given problem
+# -------------------------------
+@app.post("/chat")
+async def chat_ai(request: ChatRequest, db: Session = Depends(get_db)):
+    """
+    AI Chat endpoint using LangGraph for structured chat memory with problem context.
+    """
+    user_id = request.user_id
+    problem_id = request.problem_id
+    user_message = request.user_message
+
+    if not user_id:
+        raise HTTPException(status_code=400, detail="user_id is required")
+
+    # Unique thread ID for this user-problem pair
+    thread_id = f"{user_id}_{problem_id}"
+
+    # Check if the thread already exists
+    current_checkpoint = graph.checkpointer.get({"configurable": {"thread_id": thread_id}})
+
+    if current_checkpoint is None:
+        # New thread: fetch problem context from DB
+        problem_context = get_problem_context_for_ai(db, problem_id)
+        if not problem_context:
+            raise HTTPException(status_code=404, detail="Problem not found")
+        initial_state = {
+            "messages": [HumanMessage(content=user_message)],
+            "problem_context": problem_context,
+        }
+    else:
+        # Existing thread: use the saved problem context
+        initial_state = {
+            "messages": [HumanMessage(content=user_message)],
+        }
+
+    # Run the LangGraph model with the initial state
+    response = graph.invoke(
+        initial_state,
+        config={
+            "configurable": {"thread_id": thread_id},
+        }
+    )
+
+    # Send back the AI’s latest reply
+    return {"answer": response["messages"][-1].content}
