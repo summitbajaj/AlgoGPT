@@ -12,8 +12,7 @@ import { CodeSection } from "@/app/components/problem/CodeSection";
 import { PostRunCodeResponse, RunCodeTestCaseResult } from "@/app/utils/api/types";
 import { InputData } from "@/app/components/problem/InteractiveInput";
 import { parseInputValue } from "@/app/utils/utils";
-
-// Removed unused interface Params
+import { AIChat } from "@/app/components/problem/AIChat";
 
 export default function ProblemPage() {
   const params = useParams<{ id: string }>();
@@ -112,7 +111,7 @@ export default function ProblemPage() {
                 <TabsList className="mb-4">
                   <TabsTrigger value="description">Description</TabsTrigger>
                   <TabsTrigger value="solution">Solution</TabsTrigger>
-                  <TabsTrigger value="submissions">Submissions</TabsTrigger>
+                  <TabsTrigger value="ai-chat">AI Chat</TabsTrigger>
                 </TabsList>
 
                 <TabsContent value="description">
@@ -125,10 +124,8 @@ export default function ProblemPage() {
                   </div>
                 </TabsContent>
 
-                <TabsContent value="submissions">
-                  <div className="text-center text-gray-400 italic">
-                    Submissions history here
-                  </div>
+                <TabsContent value="ai-chat" className="h-[calc(100vh-220px)]">
+                  <AIChat problemId={params.id} />
                 </TabsContent>
               </Tabs>
             </Card>

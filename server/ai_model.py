@@ -18,10 +18,6 @@ AZURE_OPENAI_VERSION = os.getenv("AZURE_OPENAI_VERSION")
 AZURE_OPENAI_KEY = os.getenv("AZURE_OPENAI_API_KEY")
 AZURE_OPENAI_ENDPOINT = os.getenv("AZURE_OPENAI_API_ENDPOINT")
 
-print(f"AZURE_OPENAI_DEPLOYMENT: {AZURE_OPENAI_DEPLOYMENT}")
-print(f"AZURE_OPENAI_VERSION: {AZURE_OPENAI_VERSION}")
-print(f"AZURE_OPENAI_KEY: {AZURE_OPENAI_KEY}")
-print(f"AZURE_OPENAI_ENDPOINT: {AZURE_OPENAI_ENDPOINT}")
 
 # Checkpointing system to store memory
 memory = MemorySaver()
@@ -41,7 +37,7 @@ def chatbot(state: ChatState):
         api_key=AZURE_OPENAI_KEY,
         azure_endpoint=AZURE_OPENAI_ENDPOINT,
         azure_deployment=AZURE_OPENAI_DEPLOYMENT,
-        temperature=0.4
+        temperature=0.4,
     )
     
     # Construct messages for the chat, including system message and full conversation history
