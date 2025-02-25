@@ -50,6 +50,9 @@ class Problem(Base):
     # Many-to-many relationship to Topic
     topics = relationship("Topic", secondary=problem_topics, back_populates="problems")
 
+    # One-to-many relationship to Solution
+    solutions = relationship("Solution", back_populates="problem")
+
 # ----- 5) TEST CASE MODEL -----------------------------------------------
 class TestCase(Base):
     __tablename__ = "test_cases"
@@ -84,3 +87,16 @@ class Example(Base):
     # Relationship to TestCase (many-to-one)
     # NOTE: no 'unique=True' here, so multiple Example rows can share a single test_case_id
     test_case = relationship("TestCase", back_populates="examples")
+
+class Solution(Base):
+    __tablename__ = "solutions"
+
+    id = Column(Integer, primary_key=True)
+    problem_id = Column(Integer, ForeignKey("problems.id"), nullable=False)
+    code = Column(Text, nullable=False) 
+    description = Column(Text, nullable=True)
+    time_complexity = Column(Text, nullable=True) 
+    space_complexity = Column(Text, nullable=True)
+
+    # Relationship back to Problem
+    problem = relationship("Problem", back_populates="solutions")
