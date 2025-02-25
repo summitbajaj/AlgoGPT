@@ -95,6 +95,37 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/run-code": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Run Code
+         * @description Handles run code execution requests.
+         *
+         *     - Receives the user-submitted code, problem ID, and test cases.
+         *     - Forwards the request to the code execution engine.
+         *     - Retrieves the execution results and returns them to the client.
+         *
+         *     Args:
+         *         request (PostRunCodeRequest): The request payload containing the code, problem ID, and test cases.
+         *         db (Session): The database session dependency for querying/storing execution results.
+         *
+         *     Returns:
+         *         JSON response with execution results.
+         */
+        post: operations["run_code_run_code_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
 }
 export type webhooks = Record<string, never>;
 export interface components {
@@ -161,6 +192,36 @@ export interface components {
         HTTPValidationError: {
             /** Detail */
             detail?: components["schemas"]["ValidationError"][];
+        };
+        /** PostRunCodeRequest */
+        PostRunCodeRequest: {
+            /** Source Code */
+            source_code: string;
+            /** Problem Id */
+            problem_id: number;
+            /** Test Cases */
+            test_cases: components["schemas"]["RunCodeTestCase"][];
+        };
+        /** PostRunCodeResponse */
+        PostRunCodeResponse: {
+            /** Test Results */
+            test_results: components["schemas"]["RunCodeTestCaseResult"][];
+        };
+        /** RunCodeTestCase */
+        RunCodeTestCase: {
+            /** Test Case Id */
+            test_case_id: number;
+            /** Input */
+            input: Record<string, never>;
+        };
+        /** RunCodeTestCaseResult */
+        RunCodeTestCaseResult: {
+            /** Test Case Id */
+            test_case_id: number;
+            /** Input */
+            input: Record<string, never>;
+            /** Output */
+            output: unknown;
         };
         /** ValidationError */
         ValidationError: {
@@ -315,6 +376,39 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["ComplexityAnalysisResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    run_code_run_code_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["PostRunCodeRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PostRunCodeResponse"];
                 };
             };
             /** @description Validation Error */
