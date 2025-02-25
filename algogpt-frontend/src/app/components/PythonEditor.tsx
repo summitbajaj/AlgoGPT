@@ -74,7 +74,7 @@ export const PythonEditorComponent: React.FC<PythonEditorProps> = ({
     return () => {
       runButton?.removeEventListener('click', handleRunCode);
     };
-  }, [onExecutionComplete, problemId]);
+  }, [onExecutionComplete, problemId, testCaseInputs]);
   
 
   // Force editor reinitialization when problemId changes
