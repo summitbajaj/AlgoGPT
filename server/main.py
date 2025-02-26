@@ -1,5 +1,5 @@
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi import FastAPI, Depends, HTTPException, WebSocket
+from fastapi import FastAPI, Depends, HTTPException, WebSocket, WebSocketDisconnect
 from sqlalchemy.orm import Session
 import requests
 from database.database import SessionLocal
@@ -8,9 +8,21 @@ from helpers import get_all_test_cases, get_function_name, get_benchmark_test_ca
 from dotenv import load_dotenv
 import os
 from ai_model import graph
-from langchain_core.messages import HumanMessage
+from langchain_core.messages import HumanMessage, AIMessage, SystemMessage
 from shared_resources.schemas import ChatRequest
 import sys
+import json
+from langchain_openai import AzureChatOpenAI
+
+
+# Load environment variables from .env
+load_dotenv()
+
+# Set environment variables for Azure OpenAI
+AZURE_OPENAI_DEPLOYMENT = os.getenv("AZURE_OPENAI_DEPLOYMENT")
+AZURE_OPENAI_VERSION = os.getenv("AZURE_OPENAI_VERSION")
+AZURE_OPENAI_KEY = os.getenv("AZURE_OPENAI_API_KEY")
+AZURE_OPENAI_ENDPOINT = os.getenv("AZURE_OPENAI_API_ENDPOINT")
 
 # Add shared_resources to Python path
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "shared_resources")))
@@ -275,3 +287,104 @@ async def chat_ai(request: ChatRequest, db: Session = Depends(get_db)):
 
     # Send back the AI’s latest reply
     return {"answer": response["messages"][-1].content}
+
+# Store active WebSocket connections
+active_connections = {}
+
+@app.websocket("/ws/chat/{user_id}/{problem_id}")
+async def websocket_chat(
+    websocket: WebSocket,
+    user_id: str,
+    problem_id: str,
+    db: Session = Depends(get_db)
+):
+    await websocket.accept()
+    
+    # Create a unique connection ID and store the connection
+    connection_id = f"{user_id}_{problem_id}"
+    active_connections[connection_id] = websocket
+    
+    try:
+        while True:
+            # Receive message from client
+            data = await websocket.receive_text()
+            message_data = json.loads(data)
+            user_message = message_data.get("user_message", "")
+            
+            if not user_message:
+                await websocket.send_json({"error": "user_message is required"})
+                continue
+            
+            # Process the message using the same logic as the POST endpoint
+            try:
+                # Unique thread ID for this user-problem pair
+                thread_id = f"{user_id}_{problem_id}"
+                
+                # Check if the thread already exists
+                config = {"configurable": {"thread_id": thread_id}}
+                current_checkpoint = graph.checkpointer.get(config)
+                
+                if current_checkpoint is None:
+                    # New thread: fetch problem context from DB
+                    problem_context = get_problem_context_for_ai(db, int(problem_id))
+                    if not problem_context:
+                        await websocket.send_json({"error": "Problem not found"})
+                        continue
+                    
+                    initial_state = {
+                        "messages": [HumanMessage(content=user_message)],
+                        "problem_context": problem_context,
+                    }
+                else:
+                    # Existing thread: get existing state
+                    existing_state = current_checkpoint["state"]
+                    problem_context = existing_state["problem_context"]
+                    messages = existing_state["messages"]
+                    
+                    # Add the new message
+                    human_message = HumanMessage(content=user_message)
+                    initial_state = {
+                        "messages": messages + [human_message],
+                        "problem_context": problem_context,
+                    }
+                
+                # Run the LangGraph model with the state
+                response = graph.invoke(
+                    initial_state,
+                    config=config
+                )
+                
+                # Send back the AI's latest reply in the same format as the POST endpoint
+                await websocket.send_json({
+                    "answer": response["messages"][-1].content
+                })
+                
+            except Exception as e:
+                import traceback
+                error_details = traceback.format_exc()
+                print(f"Message processing error: {error_details}")
+                
+                await websocket.send_json({
+                    "error": str(e)
+                })
+            
+    except WebSocketDisconnect:
+        # Handle disconnection
+        if connection_id in active_connections:
+            del active_connections[connection_id]
+    except Exception as e:
+        import traceback
+        error_details = traceback.format_exc()
+        print(f"WebSocket error: {error_details}")
+        
+        # Try to send error message if possible
+        try:
+            await websocket.send_json({
+                "error": str(e)
+            })
+        except:
+            pass
+            
+        # Remove from active connections
+        if connection_id in active_connections:
+            del active_connections[connection_id]

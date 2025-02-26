@@ -8,3 +8,4 @@ openai
 langchain
 langgraph
 langchain-openai
+uvicorn[standard]
