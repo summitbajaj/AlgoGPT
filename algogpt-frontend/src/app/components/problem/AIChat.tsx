@@ -6,7 +6,8 @@ import { useToast } from "@/components/ui/use-toast";
 import { Loader2, Send, RotateCcw } from "lucide-react";
 import ReactMarkdown from 'react-markdown';
 import { Prism as SyntaxHighlighter } from 'react-syntax-highlighter';
-import { tomorrow } from 'react-syntax-highlighter/dist/esm/styles/prism';
+import { tomorrow } from 'react-syntax-highlighter/dist/esm/styles/prism'; 
+import type { Components } from 'react-markdown';
 
 interface Message {
   role: 'user' | 'assistant';
@@ -18,6 +19,16 @@ interface AIChatProps {
   problemId: string;
 }
 
+interface MarkdownBaseProps {
+  children?: React.ReactNode;
+  className?: string;
+}
+
+interface CodeBlockProps extends MarkdownBaseProps {
+  inline?: boolean;
+  className?: string;
+}
+
 export function AIChat({ problemId }: AIChatProps) {
   // Add a dummy user ID (you can replace this with actual user auth)
   const dummyUserId = "user123";
@@ -25,7 +36,6 @@ export function AIChat({ problemId }: AIChatProps) {
   const [input, setInput] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const { toast } = useToast();
-  const scrollAreaRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
 
   // Auto-resize textarea
@@ -115,8 +125,8 @@ export function AIChat({ problemId }: AIChatProps) {
   };
 
   // Enhanced markdown components with better paragraph handling
-  const MarkdownComponents = {
-    code({ node, inline, className, children, ...props }: any) {
+  const MarkdownComponents: Components = {
+    code({ inline, className, children, ...props }: CodeBlockProps) {
       const match = /language-(\w+)/.exec(className || '');
       return !inline && match ? (
         <SyntaxHighlighter
@@ -133,32 +143,30 @@ export function AIChat({ problemId }: AIChatProps) {
         </code>
       );
     },
-    // Add specific styling for paragraphs to fix inconsistent spacing
-    p({ node, children, ...props }: any) {
+    p({ children, className, ...props }) {
       return (
-        <p className="mb-4 last:mb-0" {...props}>
+        <p className={`mb-4 last:mb-0 ${className || ''}`} {...props}>
           {children}
         </p>
       );
     },
-    // Ensure proper styling for other elements that might cause issues
-    ul({ node, children, ...props }: any) {
+    ul({ children, className, ...props }) {
       return (
-        <ul className="list-disc pl-6 mb-4 last:mb-0" {...props}>
+        <ul className={`list-disc pl-6 mb-4 last:mb-0 ${className || ''}`} {...props}>
           {children}
         </ul>
       );
     },
-    ol({ node, children, ...props }: any) {
+    ol({ children, className, ...props }) {
       return (
-        <ol className="list-decimal pl-6 mb-4 last:mb-0" {...props}>
+        <ol className={`list-decimal pl-6 mb-4 last:mb-0 ${className || ''}`} {...props}>
           {children}
         </ol>
       );
     },
-    li({ node, children, ...props }: any) {
+    li({ children, className, ...props }) {
       return (
-        <li className="mb-1" {...props}>
+        <li className={`mb-1 ${className || ''}`} {...props}>
           {children}
         </li>
       );
