@@ -335,7 +335,8 @@ async def websocket_chat(
                 initial_state = {
                     "messages": [human_message],
                     "problem_context": problem_context,
-                    "user_code": ""
+                    "user_code": "",
+                    "code_history": []  # Initialize empty history
                 }
             else:
                 channel_values = current_checkpoint.get("channel_values", {}) if isinstance(current_checkpoint, dict) else {}
@@ -345,7 +346,8 @@ async def websocket_chat(
                 initial_state = {
                     "messages": messages + [human_message],
                     "problem_context": channel_values.get("problem_context", get_problem_context_for_ai(db, int(problem_id))),
-                    "user_code": channel_values.get("user_code", "")
+                    "user_code": channel_values.get("user_code", ""),
+                    "code_history": channel_values.get("code_history", [])  # Retrieve history
                 }
             
             response = graph.invoke(initial_state, config=config)
