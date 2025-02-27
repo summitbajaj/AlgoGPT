@@ -13,6 +13,7 @@ import { PostRunCodeResponse, RunCodeTestCaseResult } from "@/app/utils/api/type
 import { InputData } from "@/app/components/problem/InteractiveInput";
 import { parseInputValue } from "@/app/utils/utils";
 import { AIChat } from "@/app/components/problem/AIChat";
+import { WebSocketProvider } from "@/app/context/WebSocketContext";
 
 export default function ProblemPage() {
   const params = useParams<{ id: string }>();
@@ -23,6 +24,9 @@ export default function ProblemPage() {
   const [activeTestCase, setActiveTestCase] = useState(0);
   const [output, setOutput] = useState<string[]>([]);
   const [testCaseInputs, setTestCaseInputs] = useState<InputData[]>([]);
+  
+  // Replace with your actual user authentication
+  const dummyUserId = "user123";
 
   const handleRun = () => {
     // Transform each test case input
@@ -100,55 +104,57 @@ export default function ProblemPage() {
   }
 
   return (
-    <div className="fixed inset-0 bg-white text-black flex flex-col">
-      <ProblemHeader problem={problem} />
-      
-      <PanelGroup direction="horizontal" className="flex-1">
-        <Panel defaultSize={40} minSize={20}>
-          <div className="h-full overflow-auto p-4">
-            <Card className="p-4">
-              <Tabs value={activeTab} onValueChange={setActiveTab}>
-                <TabsList className="mb-4">
-                  <TabsTrigger value="description">Description</TabsTrigger>
-                  <TabsTrigger value="solution">Solution</TabsTrigger>
-                  <TabsTrigger value="ai-chat">AI Chat</TabsTrigger>
-                </TabsList>
+    <WebSocketProvider userId={dummyUserId} problemId={params.id}>
+      <div className="fixed inset-0 bg-white text-black flex flex-col">
+        <ProblemHeader problem={problem} />
+        
+        <PanelGroup direction="horizontal" className="flex-1">
+          <Panel defaultSize={40} minSize={20}>
+            <div className="h-full overflow-auto p-4">
+              <Card className="p-4">
+                <Tabs value={activeTab} onValueChange={setActiveTab}>
+                  <TabsList className="mb-4">
+                    <TabsTrigger value="description">Description</TabsTrigger>
+                    <TabsTrigger value="solution">Solution</TabsTrigger>
+                    <TabsTrigger value="ai-chat">AI Chat</TabsTrigger>
+                  </TabsList>
 
-                <TabsContent value="description">
-                  <ProblemDescription problem={problem} />
-                </TabsContent>
+                  <TabsContent value="description">
+                    <ProblemDescription problem={problem} />
+                  </TabsContent>
 
-                <TabsContent value="solution">
-                  <div className="text-center text-gray-400 italic">
-                    Solution content here
-                  </div>
-                </TabsContent>
+                  <TabsContent value="solution">
+                    <div className="text-center text-gray-400 italic">
+                      Solution content here
+                    </div>
+                  </TabsContent>
 
-                <TabsContent value="ai-chat" className="h-[calc(100vh-220px)]">
-                  <AIChat problemId={params.id} />
-                </TabsContent>
-              </Tabs>
-            </Card>
-          </div>
-        </Panel>
+                  <TabsContent value="ai-chat" className="h-[calc(100vh-220px)]">
+                    <AIChat problemId={params.id} />
+                  </TabsContent>
+                </Tabs>
+              </Card>
+            </div>
+          </Panel>
 
-        <PanelResizeHandle className="w-2 h-full bg-gray-200 hover:bg-gray-300 transition-colors" />
+          <PanelResizeHandle className="w-2 h-full bg-gray-200 hover:bg-gray-300 transition-colors" />
 
-        <Panel minSize={30}>
-          <CodeSection
-            problem={problem}
-            isRunning={isRunning}
-            activeTestCase={activeTestCase}
-            output={output}
-            onRun={handleRun}
-            onTestCaseChange={setActiveTestCase}
-            onExecutionComplete={handleRunCodeExecution}
-            problemId={params.id}
-            onTestCaseInputChange={handleTestCaseInputChange}
-            testCaseInputs={testCaseInputs}
-          />
-        </Panel>
-      </PanelGroup>
-    </div>
+          <Panel minSize={30}>
+            <CodeSection
+              problem={problem}
+              isRunning={isRunning}
+              activeTestCase={activeTestCase}
+              output={output}
+              onRun={handleRun}
+              onTestCaseChange={setActiveTestCase}
+              onExecutionComplete={handleRunCodeExecution}
+              problemId={params.id}
+              onTestCaseInputChange={handleTestCaseInputChange}
+              testCaseInputs={testCaseInputs}
+            />
+          </Panel>
+        </PanelGroup>
+      </div>
+    </WebSocketProvider>
   );
 }

@@ -15,7 +15,9 @@ import {
 import { createUserConfig } from '../config/config';
 import { runCode } from '../utils/api/api';
 import * as monaco from 'monaco-editor';
-import {PostRunCodeRequest, PostRunCodeResponse, RunCodeTestCase } from '../utils/api/types';
+import { PostRunCodeRequest, PostRunCodeResponse, RunCodeTestCase } from '../utils/api/types';
+import { useWebSocket } from '../context/WebSocketContext';
+import { debounce } from 'lodash'; 
 
 interface PythonEditorProps {
   onRunCodeComplete?: (result: PostRunCodeResponse) => void;
@@ -36,16 +38,37 @@ export const PythonEditorComponent: React.FC<PythonEditorProps> = ({
   const codeRef = useRef(code);
   const editorRootRef = useRef<ReactDOM.Root | null>(null);
   const wrapperRef = useRef<MonacoEditorLanguageClientWrapper | null>(null);
+  const { sendCodeUpdate } = useWebSocket();
 
-  // Keep refs in sync with state
+  // Create a debounced version of the sendCodeUpdate function
+  // This will only send code updates after the user stops typing for 1 second
+  const debouncedSendCodeUpdate = useRef(
+    debounce((codeToSend: string) => {
+      sendCodeUpdate(codeToSend);
+    }, 1000)
+  ).current;
+
+  // Keep refs in sync with state and send code updates
   useEffect(() => {
     codeRef.current = code;
-  }, [code]);
+    
+    // Only send non-empty code after editor is initialized
+    if (code && code !== initialCode && editorInitialized) {
+      debouncedSendCodeUpdate(code);
+    }
+  }, [code, debouncedSendCodeUpdate, initialCode, editorInitialized]);
 
   // Update code when initialCode prop changes
   useEffect(() => {
     setCode(initialCode);
   }, [initialCode]);
+
+  // Clean up the debouncer on unmount
+  useEffect(() => {
+    return () => {
+      debouncedSendCodeUpdate.cancel();
+    };
+  }, [debouncedSendCodeUpdate]);
 
   // Handle run button click
   useEffect(() => {

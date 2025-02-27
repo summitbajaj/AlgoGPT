@@ -8,6 +8,7 @@ import ReactMarkdown from 'react-markdown';
 import { Prism as SyntaxHighlighter } from 'react-syntax-highlighter';
 import { tomorrow } from 'react-syntax-highlighter/dist/esm/styles/prism'; 
 import type { Components } from 'react-markdown';
+import { useWebSocket } from '@/app/context/WebSocketContext';
 
 interface Message {
   role: 'user' | 'assistant';
@@ -17,6 +18,7 @@ interface Message {
 
 interface AIChatProps {
   problemId: string;
+  onSocketMessage?: (data: any) => void;
 }
 
 interface MarkdownBaseProps {
@@ -29,15 +31,14 @@ interface CodeBlockProps extends MarkdownBaseProps {
   className?: string;
 }
 
-export function AIChat({ problemId }: AIChatProps) {
+export function AIChat({ problemId, onSocketMessage }: AIChatProps) {
   // Replace with your actual user authentication if available
-  const dummyUserId = "user123";
   const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const { toast } = useToast();
   const textareaRef = useRef<HTMLTextAreaElement>(null);
-  const wsRef = useRef<WebSocket | null>(null);
+  const { sendChatMessage, isConnected } = useWebSocket();
 
   // Auto-resize textarea when input changes
   useEffect(() => {
@@ -59,54 +60,9 @@ export function AIChat({ problemId }: AIChatProps) {
     setTimeout(scrollToBottom, 0);
   }, [messages]);
 
-  // Establish WebSocket connection on component mount
-  useEffect(() => {
-    const ws = new WebSocket(`ws://localhost:8000/ws/chat/${dummyUserId}/${problemId}`);
-    wsRef.current = ws;
-
-    ws.onopen = () => {
-      console.log("WebSocket connected");
-    };
-
-    ws.onmessage = (event) => {
-      try {
-        const data = JSON.parse(event.data);
-        if (data.answer) {
-          const aiMessage: Message = {
-            role: 'assistant',
-            content: data.answer,
-            timestamp: new Date(),
-          };
-          setMessages((prev) => [...prev, aiMessage]);
-        } else if (data.error) {
-          toast({
-            title: "Error",
-            description: data.error,
-            variant: "destructive",
-          });
-        }
-      } catch (err) {
-        console.error("Failed to parse WebSocket message", err);
-      }
-    };
-
-    ws.onerror = (err) => {
-      console.error("WebSocket encountered error:", err);
-    };
-
-    ws.onclose = () => {
-      console.log("WebSocket connection closed");
-    };
-
-    // Cleanup WebSocket connection on unmount
-    return () => {
-      ws.close();
-    };
-  }, [dummyUserId, problemId, toast]);
-
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!input.trim() || isLoading) return;
+    if (!input.trim() || isLoading || !isConnected) return;
   
     const userMessage: Message = {
       role: 'user',
@@ -116,36 +72,62 @@ export function AIChat({ problemId }: AIChatProps) {
   
     setMessages((prev) => [...prev, userMessage]);
     setInput('');
+    setIsLoading(true);
   
     // Reset textarea height
     if (textareaRef.current) {
       textareaRef.current.style.height = 'auto';
     }
-  
-    // Dummy message ID (can be random, but fixed is also fine)
-    const messageId = `msg-${Date.now()}`;
-  
-  // Send the message through WebSocket
-  if (wsRef.current && wsRef.current.readyState === WebSocket.OPEN) {
-    console.log("Sending message via WebSocket:", 
-      JSON.stringify({
-        user_message: userMessage.content,
-        messageId: messageId 
-      })
-    );
-    wsRef.current.send(JSON.stringify({
-      user_message: userMessage.content,
-      messageId: messageId 
-    }));
-  } else {
-    console.error("WebSocket not ready. State:", wsRef.current?.readyState);
-      toast({
-        title: "Connection Error",
-        description: "WebSocket is not open",
-        variant: "destructive",
-      });
-    }
+    
+    // Send the message using our context
+    sendChatMessage(userMessage.content);
   };
+
+  // Process WebSocket message responses
+  useEffect(() => {
+    function handleWebSocketMessage(event: CustomEvent) {
+      try {
+        const data = event.detail;  // The data is now directly in the event.detail
+        
+        // Call the optional callback if provided
+        if (onSocketMessage) {
+          onSocketMessage(data);
+        }
+        
+        if (data.answer) {
+          const aiMessage: Message = {
+            role: 'assistant',
+            content: data.answer,
+            timestamp: new Date(),
+          };
+          setMessages((prev) => [...prev, aiMessage]);
+          setIsLoading(false);
+        } else if (data.error) {
+          toast({
+            title: "Error",
+            description: data.error,
+            variant: "destructive",
+          });
+          setIsLoading(false);
+        }
+      } catch (err) {
+        console.error("Failed to process message:", err);
+        setIsLoading(false);
+      }
+    }
+
+    // Use a reference to the same function for adding and removing
+    const handleWebSocketMessageWrapper = (e: Event) => 
+      handleWebSocketMessage(e as CustomEvent);
+
+    // Listen for messages with the same function reference
+    window.addEventListener('websocket-message', handleWebSocketMessageWrapper);
+
+    return () => {
+      // Remove the exact same function reference
+      window.removeEventListener('websocket-message', handleWebSocketMessageWrapper);
+    };
+  }, [toast, onSocketMessage]);
 
   const clearChat = () => {
     if (messages.length > 0) {
@@ -224,7 +206,10 @@ export function AIChat({ problemId }: AIChatProps) {
   return (
     <div className="flex flex-col h-full border rounded-lg">
       <div className="flex justify-between items-center p-3 border-b">
-        <h2 className="text-lg font-semibold">AI Assistant</h2>
+        <h2 className="text-lg font-semibold">
+          AI Assistant
+          {!isConnected && <span className="ml-2 text-sm text-red-500">(Disconnected)</span>}
+        </h2>
         <Button variant="outline" size="sm" onClick={clearChat} disabled={messages.length === 0 || isLoading}>
           <RotateCcw className="h-4 w-4 mr-2" />
           Clear Chat

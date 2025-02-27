@@ -299,114 +299,68 @@ async def websocket_chat(
     db: Session = Depends(get_db)
 ):
     await websocket.accept()
-    
-    # Create a unique connection ID and store the connection
     connection_id = f"{user_id}_{problem_id}"
     active_connections[connection_id] = websocket
     
     try:
         while True:
-            # Receive message from client
             data = await websocket.receive_text()
             message_data = json.loads(data)
-            user_message = message_data.get("user_message", "")
+            message_type = message_data.get("type", "chat")
             
-            if not user_message:
-                await websocket.send_json({"error": "user_message is required"})
+            if message_type == "chat":
+                user_message = message_data.get("user_message", "")
+                if not user_message:
+                    await websocket.send_json({"error": "user_message is required"})
+                    continue
+                message_content = json.dumps({"type": "chat", "content": user_message})
+            elif message_type == "code_update":
+                user_code = message_data.get("code", "")
+                if not user_code:
+                    continue
+                message_content = json.dumps({"type": "code_update", "code": user_code})
+            else:
                 continue
             
-            # Process the message using the same logic as the POST endpoint
-            try:
-                # Unique thread ID for this user-problem pair
-                thread_id = f"{user_id}_{problem_id}"
-                
-                # Check if the thread already exists
-                config = {"configurable": {"thread_id": thread_id}}
-                current_checkpoint = graph.checkpointer.get(config)
-
-                if current_checkpoint is None:
-                    # New thread: fetch problem context from DB
-                    problem_context = get_problem_context_for_ai(db, int(problem_id))
-                    if not problem_context:
-                        await websocket.send_json({"error": "Problem not found"})
-                        continue
-                    
-                    initial_state = {
-                        "messages": [HumanMessage(content=user_message)],
-                        "problem_context": problem_context,
-                    }
-                else:
-                    try:
-                        # Try to get existing state
-                        existing_state = current_checkpoint["state"]
-                        
-                        # Make sure both keys exist
-                        if "problem_context" not in existing_state:
-                            # Get problem context if missing
-                            problem_context = get_problem_context_for_ai(db, int(problem_id))
-                            if not problem_context:
-                                await websocket.send_json({"error": "Problem not found"})
-                                continue
-                            existing_state["problem_context"] = problem_context
-                        
-                        messages = existing_state.get("messages", [])
-                        problem_context = existing_state["problem_context"]
-                        
-                        # Add the new message
-                        human_message = HumanMessage(content=user_message)
-                        initial_state = {
-                            "messages": messages + [human_message],
-                            "problem_context": problem_context,
-                        }
-                    except (KeyError, TypeError):
-                        # Handle missing state or other issues with checkpoint
-                        problem_context = get_problem_context_for_ai(db, int(problem_id))
-                        if not problem_context:
-                            await websocket.send_json({"error": "Problem not found"})
-                            continue
-                        
-                        initial_state = {
-                            "messages": [HumanMessage(content=user_message)],
-                            "problem_context": problem_context,
-                        }
-                
-                # Run the LangGraph model with the state
-                response = graph.invoke(
-                    initial_state,
-                    config=config
-                )
-                
-                # Send back the AI's latest reply
-                await websocket.send_json({
-                    "answer": response["messages"][-1].content
-                })
-                
-            except Exception as e:
-                import traceback
-                error_details = traceback.format_exc()
-                print(f"Message processing error: {error_details}")
-                
-                await websocket.send_json({
-                    "error": str(e)
-                })
+            human_message = HumanMessage(content=message_content)
+            config = {"configurable": {"thread_id": connection_id}}
             
+            current_checkpoint = graph.checkpointer.get(config)
+            
+            if current_checkpoint is None:
+                problem_context = get_problem_context_for_ai(db, int(problem_id))
+                if not problem_context:
+                    await websocket.send_json({"error": "Problem not found"})
+                    continue
+                initial_state = {
+                    "messages": [human_message],
+                    "problem_context": problem_context,
+                    "user_code": ""
+                }
+            else:
+                channel_values = current_checkpoint.get("channel_values", {}) if isinstance(current_checkpoint, dict) else {}
+                messages = channel_values.get("messages", [])
+                if not isinstance(messages, list):
+                    messages = []
+                initial_state = {
+                    "messages": messages + [human_message],
+                    "problem_context": channel_values.get("problem_context", get_problem_context_for_ai(db, int(problem_id))),
+                    "user_code": channel_values.get("user_code", "")
+                }
+            
+            response = graph.invoke(initial_state, config=config)
+            
+            last_message = response["messages"][-1]
+            if isinstance(last_message, AIMessage):
+                await websocket.send_json({"answer": last_message.content})
+    
     except WebSocketDisconnect:
-        # Handle disconnection
         if connection_id in active_connections:
             del active_connections[connection_id]
     except Exception as e:
-        import traceback
-        error_details = traceback.format_exc()
-        print(f"WebSocket error: {error_details}")
-        
-        # Try to send error message if possible
         try:
-            await websocket.send_json({
-                "error": str(e)
-            })
+            await websocket.send_json({"error": str(e)})
         except:
             pass
-            
-        # Remove from active connections
         if connection_id in active_connections:
             del active_connections[connection_id]
