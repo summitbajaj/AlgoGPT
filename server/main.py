@@ -323,7 +323,7 @@ async def websocket_chat(
                 # Check if the thread already exists
                 config = {"configurable": {"thread_id": thread_id}}
                 current_checkpoint = graph.checkpointer.get(config)
-                
+
                 if current_checkpoint is None:
                     # New thread: fetch problem context from DB
                     problem_context = get_problem_context_for_ai(db, int(problem_id))
@@ -336,17 +336,39 @@ async def websocket_chat(
                         "problem_context": problem_context,
                     }
                 else:
-                    # Existing thread: get existing state
-                    existing_state = current_checkpoint["state"]
-                    problem_context = existing_state["problem_context"]
-                    messages = existing_state["messages"]
-                    
-                    # Add the new message
-                    human_message = HumanMessage(content=user_message)
-                    initial_state = {
-                        "messages": messages + [human_message],
-                        "problem_context": problem_context,
-                    }
+                    try:
+                        # Try to get existing state
+                        existing_state = current_checkpoint["state"]
+                        
+                        # Make sure both keys exist
+                        if "problem_context" not in existing_state:
+                            # Get problem context if missing
+                            problem_context = get_problem_context_for_ai(db, int(problem_id))
+                            if not problem_context:
+                                await websocket.send_json({"error": "Problem not found"})
+                                continue
+                            existing_state["problem_context"] = problem_context
+                        
+                        messages = existing_state.get("messages", [])
+                        problem_context = existing_state["problem_context"]
+                        
+                        # Add the new message
+                        human_message = HumanMessage(content=user_message)
+                        initial_state = {
+                            "messages": messages + [human_message],
+                            "problem_context": problem_context,
+                        }
+                    except (KeyError, TypeError):
+                        # Handle missing state or other issues with checkpoint
+                        problem_context = get_problem_context_for_ai(db, int(problem_id))
+                        if not problem_context:
+                            await websocket.send_json({"error": "Problem not found"})
+                            continue
+                        
+                        initial_state = {
+                            "messages": [HumanMessage(content=user_message)],
+                            "problem_context": problem_context,
+                        }
                 
                 # Run the LangGraph model with the state
                 response = graph.invoke(
@@ -354,7 +376,7 @@ async def websocket_chat(
                     config=config
                 )
                 
-                # Send back the AI's latest reply in the same format as the POST endpoint
+                # Send back the AI's latest reply
                 await websocket.send_json({
                     "answer": response["messages"][-1].content
                 })

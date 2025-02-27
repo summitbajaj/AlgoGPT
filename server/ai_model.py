@@ -50,15 +50,16 @@ def chatbot(state: ChatState):
         # Get response using LangChain
         ai_response = chat(messages)
 
-        # Append only the AI response, as the user message is already in state["messages"]
+        # Return the full state with updated messages
         return {
-            "messages": state["messages"] + [AIMessage(content=ai_response.content)]
+            "messages": state["messages"] + [AIMessage(content=ai_response.content)],
+            "problem_context": state["problem_context"]  # Preserve problem_context
         }
     except Exception as e:
         return {
-            "messages": state["messages"] + [AIMessage(content=f"Error: {str(e)}")]
+            "messages": state["messages"] + [AIMessage(content=f"Error: {str(e)}")],
+            "problem_context": state["problem_context"]  # Preserve problem_context
         }
-
 # Function to initialize Azure ChatOpenAI client
 def get_azure_chat_client(streaming=False):
     """

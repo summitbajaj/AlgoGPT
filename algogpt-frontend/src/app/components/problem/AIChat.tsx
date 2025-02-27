@@ -30,15 +30,16 @@ interface CodeBlockProps extends MarkdownBaseProps {
 }
 
 export function AIChat({ problemId }: AIChatProps) {
-  // Add a dummy user ID (you can replace this with actual user auth)
+  // Replace with your actual user authentication if available
   const dummyUserId = "user123";
   const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const { toast } = useToast();
   const textareaRef = useRef<HTMLTextAreaElement>(null);
+  const wsRef = useRef<WebSocket | null>(null);
 
-  // Auto-resize textarea
+  // Auto-resize textarea when input changes
   useEffect(() => {
     if (textareaRef.current) {
       textareaRef.current.style.height = 'auto';
@@ -46,8 +47,8 @@ export function AIChat({ problemId }: AIChatProps) {
     }
   }, [input]);
 
+  // Scroll to bottom when messages update
   const scrollToBottom = () => {
-    // Find the scroll container and scroll to bottom
     const scrollContainer = document.querySelector('.scroll-area-viewport');
     if (scrollContainer) {
       scrollContainer.scrollTop = scrollContainer.scrollHeight;
@@ -55,62 +56,94 @@ export function AIChat({ problemId }: AIChatProps) {
   };
 
   useEffect(() => {
-    // Use setTimeout to ensure the DOM has updated
     setTimeout(scrollToBottom, 0);
   }, [messages]);
 
-  const handleSubmit = async (e: React.FormEvent) => {
+  // Establish WebSocket connection on component mount
+  useEffect(() => {
+    const ws = new WebSocket(`ws://localhost:8000/ws/chat/${dummyUserId}/${problemId}`);
+    wsRef.current = ws;
+
+    ws.onopen = () => {
+      console.log("WebSocket connected");
+    };
+
+    ws.onmessage = (event) => {
+      try {
+        const data = JSON.parse(event.data);
+        if (data.answer) {
+          const aiMessage: Message = {
+            role: 'assistant',
+            content: data.answer,
+            timestamp: new Date(),
+          };
+          setMessages((prev) => [...prev, aiMessage]);
+        } else if (data.error) {
+          toast({
+            title: "Error",
+            description: data.error,
+            variant: "destructive",
+          });
+        }
+      } catch (err) {
+        console.error("Failed to parse WebSocket message", err);
+      }
+    };
+
+    ws.onerror = (err) => {
+      console.error("WebSocket encountered error:", err);
+    };
+
+    ws.onclose = () => {
+      console.log("WebSocket connection closed");
+    };
+
+    // Cleanup WebSocket connection on unmount
+    return () => {
+      ws.close();
+    };
+  }, [dummyUserId, problemId, toast]);
+
+  const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (!input.trim() || isLoading) return;
-
-    const userMessage = input.trim();
+  
+    const userMessage: Message = {
+      role: 'user',
+      content: input.trim(),
+      timestamp: new Date(),
+    };
+  
+    setMessages((prev) => [...prev, userMessage]);
     setInput('');
-    
+  
     // Reset textarea height
     if (textareaRef.current) {
       textareaRef.current.style.height = 'auto';
     }
-
-    const newUserMessage = {
-      role: 'user' as const,
-      content: userMessage,
-      timestamp: new Date()
-    };
-    
-    setMessages(prev => [...prev, newUserMessage]);
-    setIsLoading(true);
-
-    try {
-      const response = await fetch('http://localhost:8000/chat', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ 
-          user_id: dummyUserId,
-          problem_id: problemId,
-          user_message: userMessage 
-        }),
-      });
-
-      if (!response.ok) throw new Error('Failed to get response');
-      
-      const data = await response.json();
-      // Make sure we're properly extracting the AI message from the response
-      const aiMessage = data.answer || "Sorry, I couldn't generate a response.";
   
-      setMessages(prev => [...prev, {
-        role: 'assistant',
-        content: aiMessage,
-        timestamp: new Date()
-      }]);
-    } catch (error) {
+    // Dummy message ID (can be random, but fixed is also fine)
+    const messageId = `msg-${Date.now()}`;
+  
+  // Send the message through WebSocket
+  if (wsRef.current && wsRef.current.readyState === WebSocket.OPEN) {
+    console.log("Sending message via WebSocket:", 
+      JSON.stringify({
+        user_message: userMessage.content,
+        messageId: messageId 
+      })
+    );
+    wsRef.current.send(JSON.stringify({
+      user_message: userMessage.content,
+      messageId: messageId 
+    }));
+  } else {
+    console.error("WebSocket not ready. State:", wsRef.current?.readyState);
       toast({
-        title: "Error",
-        description: "Failed to get AI response. Please try again.",
+        title: "Connection Error",
+        description: "WebSocket is not open",
         variant: "destructive",
       });
-      console.error('Chat error:', error);
-    } finally {
-      setIsLoading(false);
     }
   };
 
@@ -124,17 +157,12 @@ export function AIChat({ problemId }: AIChatProps) {
     }
   };
 
-  // Enhanced markdown components with better paragraph handling
+  // Markdown component enhancements
   const MarkdownComponents: Components = {
     code({ inline, className, children, ...props }: CodeBlockProps) {
       const match = /language-(\w+)/.exec(className || '');
       return !inline && match ? (
-        <SyntaxHighlighter
-          style={tomorrow}
-          language={match[1]}
-          PreTag="div"
-          {...props}
-        >
+        <SyntaxHighlighter style={tomorrow} language={match[1]} PreTag="div" {...props}>
           {String(children).replace(/\n$/, '')}
         </SyntaxHighlighter>
       ) : (
@@ -173,26 +201,21 @@ export function AIChat({ problemId }: AIChatProps) {
     }
   };
 
-  // Function to render message content based on role
+  // Render message content based on role
   const renderMessageContent = (message: Message) => {
     if (message.role === 'user') {
       return <div className="whitespace-pre-wrap">{message.content}</div>;
     } else {
-      // Check if content is valid for Markdown
       try {
         return (
           <div className="markdown-message">
-            <ReactMarkdown
-              components={MarkdownComponents}
-              className="prose prose-sm dark:prose-invert max-w-none prose-p:my-2 prose-headings:my-3"
-            >
+            <ReactMarkdown components={MarkdownComponents} className="prose prose-sm dark:prose-invert max-w-none">
               {message.content}
             </ReactMarkdown>
           </div>
         );
       } catch (error) {
         console.error("Failed to render markdown:", error);
-        // Fallback to plain text if markdown rendering fails
         return <div className="whitespace-pre-wrap">{message.content}</div>;
       }
     }
@@ -202,17 +225,11 @@ export function AIChat({ problemId }: AIChatProps) {
     <div className="flex flex-col h-full border rounded-lg">
       <div className="flex justify-between items-center p-3 border-b">
         <h2 className="text-lg font-semibold">AI Assistant</h2>
-        <Button 
-          variant="outline" 
-          size="sm" 
-          onClick={clearChat}
-          disabled={messages.length === 0 || isLoading}
-        >
+        <Button variant="outline" size="sm" onClick={clearChat} disabled={messages.length === 0 || isLoading}>
           <RotateCcw className="h-4 w-4 mr-2" />
           Clear Chat
         </Button>
       </div>
-
       <ScrollArea className="flex-1 p-4 scroll-area">
         {messages.length === 0 ? (
           <div className="flex flex-col items-center justify-center h-full text-center text-muted-foreground p-4">
@@ -227,25 +244,10 @@ export function AIChat({ problemId }: AIChatProps) {
         ) : (
           <div className="space-y-4">
             {messages.map((message, index) => (
-              <div
-                key={index}
-                className={`flex ${
-                  message.role === 'user' ? 'justify-end' : 'justify-start'
-                }`}
-              >
-                <div
-                  className={`max-w-[85%] rounded-lg p-4 ${
-                    message.role === 'user'
-                      ? 'bg-primary text-primary-foreground'
-                      : 'bg-muted'
-                  }`}
-                >
+              <div key={index} className={`flex ${message.role === 'user' ? 'justify-end' : 'justify-start'}`}>
+                <div className={`max-w-[85%] rounded-lg p-4 ${message.role === 'user' ? 'bg-primary text-primary-foreground' : 'bg-muted'}`}>
                   {renderMessageContent(message)}
-                  <div className={`text-xs mt-1 ${
-                    message.role === 'user' 
-                      ? 'text-primary-foreground/80' 
-                      : 'text-muted-foreground'
-                  }`}>
+                  <div className={`text-xs mt-1 ${message.role === 'user' ? 'text-primary-foreground/80' : 'text-muted-foreground'}`}>
                     {message.timestamp.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
                   </div>
                 </div>
@@ -261,7 +263,6 @@ export function AIChat({ problemId }: AIChatProps) {
           </div>
         )}
       </ScrollArea>
-
       <form onSubmit={handleSubmit} className="p-4 border-t">
         <div className="flex gap-2">
           <Textarea
@@ -277,12 +278,7 @@ export function AIChat({ problemId }: AIChatProps) {
               }
             }}
           />
-          <Button 
-            type="submit" 
-            size="icon"
-            disabled={isLoading || !input.trim()}
-            className="h-auto aspect-square"
-          >
+          <Button type="submit" size="icon" disabled={isLoading || !input.trim()} className="h-auto aspect-square">
             {isLoading ? (
               <Loader2 className="h-4 w-4 animate-spin" />
             ) : (
