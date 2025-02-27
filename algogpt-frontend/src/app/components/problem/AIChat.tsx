@@ -16,9 +16,15 @@ interface Message {
   timestamp: Date;
 }
 
+interface WebSocketResponse {
+  answer?: string;
+  error?: string;
+  [key: string]: unknown; 
+}
+
 interface AIChatProps {
   problemId: string;
-  onSocketMessage?: (data: any) => void;
+  onSocketMessage?: (data: WebSocketResponse) => void; // Replace 'any' with our new type
 }
 
 interface MarkdownBaseProps {
