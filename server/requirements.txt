@@ -4,3 +4,8 @@ psycopg2-binary
 uvicorn 
 requests
 python-dotenv
+openai
+langchain
+langgraph
+langchain-openai
+uvicorn[standard]

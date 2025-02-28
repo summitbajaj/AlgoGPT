@@ -70,6 +70,7 @@ export function CodeSection({
             <Card className="h-full overflow-hidden">
               <div className="h-full w-full" id="monaco-editor-root">
                 <PythonEditorComponent
+                  key = {problem.problem_id}
                   initialCode={problem.starter_code}
                   onRunCodeComplete={onExecutionComplete}
                   problemId={problem.problem_id}

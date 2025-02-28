@@ -52,3 +52,7 @@ class PostRunCodeResponse(BaseModel):
     
 class RunCodeExecutionPayload(PostRunCodeRequest):
     function_name: str
+class ChatRequest(BaseModel):
+    user_id: str
+    problem_id: int
+    user_message: str
