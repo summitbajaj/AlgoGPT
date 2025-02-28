@@ -209,12 +209,12 @@ export const PythonEditorComponent: React.FC<PythonEditorProps> = ({
 
     const initializeEditor = async (code: string) => {
       try {
-        const fileUri = vscode.Uri.file('/workspace/problem.py');
+        const fileUri = vscode.Uri.file(`/workspace/problem-${problemId}.py`);
         const fileSystemProvider = new RegisteredFileSystemProvider(false);
         fileSystemProvider.registerFile(new RegisteredMemoryFile(fileUri, code));
         registerFileSystemOverlay(1, fileSystemProvider);
-
-        const wrapperConfig = createUserConfig('/workspace', code, '/workspace/problem.py');
+        
+        const wrapperConfig = createUserConfig('/workspace', code, `/workspace/problem-${problemId}.py`);        
         renderEditor(wrapperConfig);
         setEditorInitialized(true);
       } catch (err) {

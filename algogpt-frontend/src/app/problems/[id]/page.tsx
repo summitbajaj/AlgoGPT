@@ -141,6 +141,7 @@ export default function ProblemPage() {
 
           <Panel minSize={30}>
             <CodeSection
+              key={params.id}
               problem={problem}
               isRunning={isRunning}
               activeTestCase={activeTestCase}
