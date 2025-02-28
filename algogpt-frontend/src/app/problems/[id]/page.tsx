@@ -6,7 +6,6 @@ import { Panel, PanelGroup, PanelResizeHandle } from "react-resizable-panels";
 import { Card } from "@/components/ui/card";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { Problem } from "@/app/utils/api/types";
-import { ProblemHeader } from "@/app/components/problem/ProblemHeader";
 import { ProblemDescription } from "@/app/components/problem/ProblemDescription";
 import { CodeSection } from "@/app/components/problem/CodeSection";
 import { PostRunCodeResponse, RunCodeTestCaseResult } from "@/app/utils/api/types";
@@ -105,15 +104,13 @@ export default function ProblemPage() {
 
   return (
     <WebSocketProvider userId={dummyUserId} problemId={params.id}>
-      <div className="fixed inset-0 bg-white text-black flex flex-col">
-        <ProblemHeader problem={problem} />
-        
+      <div className="fixed inset-0 bg-white text-black flex flex-col pt-[60px]">
         <PanelGroup direction="horizontal" className="flex-1">
           <Panel defaultSize={40} minSize={20}>
             <div className="h-full overflow-auto p-4">
-              <Card className="p-4">
+              <Card className="p-2">
                 <Tabs value={activeTab} onValueChange={setActiveTab}>
-                  <TabsList className="mb-4">
+                  <TabsList className="mb-0">
                     <TabsTrigger value="description">Description</TabsTrigger>
                     <TabsTrigger value="solution">Solution</TabsTrigger>
                     <TabsTrigger value="ai-chat">AI Chat</TabsTrigger>
