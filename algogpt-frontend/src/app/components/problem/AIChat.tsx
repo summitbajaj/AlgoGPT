@@ -22,9 +22,13 @@ interface WebSocketResponse {
   [key: string]: unknown; 
 }
 
-interface AIChatProps {
+interface ProblemInfo {
   problemId: string;
-  onSocketMessage?: (data: WebSocketResponse) => void; // Replace 'any' with our new type
+  problemTitle: string;
+}
+interface AIChatProps {
+  problemInfo: ProblemInfo;
+  onSocketMessage?: (data: WebSocketResponse) => void;
 }
 
 interface MarkdownBaseProps {
@@ -37,7 +41,7 @@ interface CodeBlockProps extends MarkdownBaseProps {
   className?: string;
 }
 
-export function AIChat({ problemId, onSocketMessage }: AIChatProps) {
+export function AIChat({ problemInfo: problemInfo, onSocketMessage }: AIChatProps) {
   // Replace with your actual user authentication if available
   const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState('');
@@ -230,7 +234,7 @@ export function AIChat({ problemId, onSocketMessage }: AIChatProps) {
               <path d="M12 8h.01"/>
             </svg>
             <h3 className="text-lg font-medium mb-2">How can I help you today?</h3>
-            <p>Ask me anything about problem #{problemId}!</p>
+            <p>Ask me anything about problem {problemInfo.problemTitle}!</p>
           </div>
         ) : (
           <div className="space-y-4">

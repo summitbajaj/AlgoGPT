@@ -130,7 +130,7 @@ export default function ProblemPage() {
                   </TabsContent>
 
                   <TabsContent value="ai-chat" className="h-[calc(100vh-220px)]">
-                    <AIChat problemId={params.id} />
+                    <AIChat problemInfo={{problemId: params.id, problemTitle: problem.title}} />
                   </TabsContent>
                 </Tabs>
               </Card>
