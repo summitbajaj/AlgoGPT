@@ -105,6 +105,13 @@ class Solution(Base):
     problem = relationship("Problem", back_populates="solutions")
 
 # ----- 7) SUBMISSION MODEL --------------------------------------------------
+class SubmissionStatus(str, enum.Enum):
+    ACCEPTED = "Accepted"
+    WRONG_ANSWER = "Wrong Answer"
+    RUNTIME_ERROR = "Runtime Error"
+    TIME_LIMIT_EXCEEDED = "Time Limit Exceeded"
+    COMPILATION_ERROR = "Compilation Error"
+
 class Submission(Base):
     __tablename__ = "submissions"
 
@@ -115,7 +122,7 @@ class Submission(Base):
     submission_time = Column(DateTime, default=datetime.utcnow)
 
     # Overall submission result
-    status = Column(String)  # e.g., "Accepted", "Wrong Answer", "Runtime Error"
+    status = Column(Enum(SubmissionStatus), nullable=False)  
     total_tests = Column(Integer, default=0)
     passed_tests = Column(Integer, default=0)
 
@@ -141,7 +148,7 @@ class SubmissionTestResult(Base):
     
     # Simple pass/fail or more detailed status
     passed = Column(BOOLEAN, default=False)
-    status = Column(String)  # e.g., "Passed", "Failed", "Runtime Error"
+    status = Column(Enum(SubmissionStatus), nullable=False)
 
     # For reference and debugging
     input_data = Column(JSONB, nullable=True)
