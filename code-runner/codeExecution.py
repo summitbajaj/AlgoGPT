@@ -4,11 +4,12 @@ from fastapi import HTTPException
 import time
 import sys
 import os
-from helper import run_code_using_user_tests
+from helper import run_code_using_user_tests, submit_user_code_tests
+from typing import Dict, List
 
 # Add shared_resources to Python path
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "shared_resources")))
-from shared_resources.schemas import RunCodeExecutionPayload, PostRunCodeResponse
+from shared_resources.schemas import RunCodeExecutionPayload, PostRunCodeResponse, SubmitCodeExecutionPayload, SubmitCodeTestResult
 
 # Import the benchmark-based complexity analysis function
 from complexity_analysis import combine_complexity_analysis
@@ -23,91 +24,22 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-def run_user_code(user_code, test_cases, function_name):
-    """
-    Executes the user code against provided test cases.
-    
-    Expects the code to define a class named 'Solution'.
-    """
-    results = []
-    global_namespace = {}
-
-    try:
-        exec(user_code, global_namespace)
-    except Exception as e:
-        return {"error": f"Error in user code: {e}"}
-
-    if 'Solution' not in global_namespace:
-        return {"error": "No class named 'Solution' found in the submitted code."}
-
-    sol_instance = global_namespace['Solution']()
-    start_time = time.time()
-
-    for tc in test_cases:
-        input_data = tc.get("input_data")
-        expected_output = tc.get("expected_output")
-        order_sensitive = tc.get("order_sensitive", True)
-
-        # If input_data is a dict, assume it's keyword arguments
-        if isinstance(input_data, dict):
-            try:
-                output = getattr(sol_instance, function_name)(**input_data)
-            except Exception as e:
-                results.append({
-                    "input": input_data,
-                    "expected": expected_output,
-                    "output": f"Error during execution: {e}",
-                    "passed": False
-                })
-                continue
-        else:
-            # Otherwise treat input_data as positional arguments
-            args = input_data if isinstance(input_data, (list, tuple)) else [input_data]
-            try:
-                output = getattr(sol_instance, function_name)(*args)
-            except Exception as e:
-                results.append({
-                    "input": input_data,
-                    "expected": expected_output,
-                    "output": f"Error during execution: {e}",
-                    "passed": False
-                })
-                continue
-
-        # Compare output with expected output, considering order sensitivity
-        if (not order_sensitive and 
-            isinstance(output, list) and isinstance(expected_output, list)):
-            passed = sorted(output) == sorted(expected_output)
-        else:
-            passed = output == expected_output
-
-        results.append({
-            "input": input_data,
-            "expected": expected_output,
-            "output": output,
-            "passed": passed
-        })
-
-    execution_time = time.time() - start_time
-    return {
-        "test_results": results,
-        "execution_time": round(execution_time, 3)
-    }
-
 @app.get('/health')
 def health():
     return {"status": "healthy"}
 
-@app.post('/run-code')
-async def run_code(data: dict):
-    user_code = data.get("code", "")
-    test_cases = data.get("test_cases", [])
-    function_name = data.get("function_name", "")
+@app.post('/submit-code', response_model=Dict[str, List[SubmitCodeTestResult]])
+async def run_code(request: SubmitCodeExecutionPayload):
+    """ Endpoint for running user-submitted code against test cases. """
+
+    user_code = request.source_code
+    test_cases = request.test_cases
+    function_name = request.function_name
     
     if not user_code:
         raise HTTPException(status_code=400, detail="No code provided")
 
-    result = run_user_code(user_code, test_cases, function_name)
+    result = submit_user_code_tests(user_code, test_cases, function_name)
     if "error" in result:
         raise HTTPException(status_code=400, detail=result["error"])
 

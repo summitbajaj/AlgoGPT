@@ -8,26 +8,15 @@ from helpers import get_all_test_cases, get_function_name, get_benchmark_test_ca
 from dotenv import load_dotenv
 import os
 from ai_model import graph
-from langchain_core.messages import HumanMessage, AIMessage, SystemMessage
+from langchain_core.messages import HumanMessage, AIMessage
 from shared_resources.schemas import ChatRequest
 import sys
 import json
-from langchain_openai import AzureChatOpenAI
-
-
-# Load environment variables from .env
-load_dotenv()
-
-# Set environment variables for Azure OpenAI
-AZURE_OPENAI_DEPLOYMENT = os.getenv("AZURE_OPENAI_DEPLOYMENT")
-AZURE_OPENAI_VERSION = os.getenv("AZURE_OPENAI_VERSION")
-AZURE_OPENAI_KEY = os.getenv("AZURE_OPENAI_API_KEY")
-AZURE_OPENAI_ENDPOINT = os.getenv("AZURE_OPENAI_API_ENDPOINT")
 
 # Add shared_resources to Python path
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "shared_resources")))
 
-from shared_resources.schemas import CodeExecutionRequest, CodeExecutionResponse, ComplexityAnalysisRequest, ComplexityAnalysisResponse, GetProblemResponse, ExampleTestCaseModel, PostRunCodeRequest, RunCodeExecutionPayload,PostRunCodeResponse, ChatRequest
+from shared_resources.schemas import SubmitCodeRequest, SubmitCodeResponse, ComplexityAnalysisRequest, ComplexityAnalysisResponse, GetProblemResponse, ExampleTestCaseModel, PostRunCodeRequest, RunCodeExecutionPayload,PostRunCodeResponse, ChatRequest, SubmitCodeExecutionPayload
 
 # Load environment variables from .env file
 load_dotenv()
@@ -35,7 +24,7 @@ load_dotenv()
 app = FastAPI()
 
 # TODO: change name for proper url
-EXECUTION_SERVER_URL = "http://code-runner:5000/run-code"
+SUBMIT_CODE_SERVER_URL = "http://code-runner:5000/submit-code"
 ANALYZE_COMPLEXITY_URL = "http://code-runner:5000/analyze-complexity"
 RUN_CODE_URL = "http://code-runner:5000/run-user-tests"
 
@@ -131,10 +120,10 @@ def fetch_test_cases(problem_id: int, db: Session = Depends(get_db)):
 
 
 # -------------------------------
-# 4️⃣ Execute user code (Forwards to Flask Code Runner)
+# Submit user code, forward to code runner for submissions, and return results
 # -------------------------------
-@app.post("/execute", response_model=CodeExecutionResponse)
-def execute_code(request: CodeExecutionRequest, db: Session = Depends(get_db)):
+@app.post("/submit-code", response_model=SubmitCodeResponse)
+def execute_code(request: SubmitCodeRequest, db: Session = Depends(get_db)):
     """Fetches test cases, forwards request to code runner, and returns results."""
 
     # Fetch test cases from the database
@@ -147,16 +136,17 @@ def execute_code(request: CodeExecutionRequest, db: Session = Depends(get_db)):
         raise HTTPException(status_code=404, detail="No test cases found for this problem")
 
     # Send user code + test cases to the execution service
-    execution_payload = {
-        "code": request.code,
-        "test_cases": test_cases,
-        "function_name": function_name,
-    }
-
-    response = requests.post(EXECUTION_SERVER_URL, json=execution_payload)
+    execution_payload = SubmitCodeExecutionPayload(
+        source_code=request.source_code,
+        problem_id=request.problem_id,
+        function_name=function_name,
+        test_cases=test_cases
+    )
+    
+    response = requests.post(SUBMIT_CODE_SERVER_URL, json=execution_payload.dict())
 
     if response.status_code != 200:
-        raise HTTPException(status_code=500, detail="Code execution service failed")
+        raise HTTPException(status_code=500, detail="Submit Code execution service failed")
 
     return response.json()
 
@@ -288,6 +278,9 @@ async def chat_ai(request: ChatRequest, db: Session = Depends(get_db)):
     # Send back the AI’s latest reply
     return {"answer": response["messages"][-1].content}
 
+# -------------------------------
+# Websocket endpoint to communicate with AI Chatbot for a given problem
+# -------------------------------
 # Store active WebSocket connections
 active_connections = {}
 
