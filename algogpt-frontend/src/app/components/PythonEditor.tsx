@@ -225,7 +225,7 @@ export const PythonEditorComponent: React.FC<PythonEditorProps> = ({
     };
 
     initializeEditor(initialCode);
-  }, [editorInitialized, initialCode, lspConnected]); // Added lspConnected to dependencies
+  }, [editorInitialized, initialCode, lspConnected, problemId]);
 
   // Handle fallback to basic mode if LSP connection fails
   useEffect(() => {
