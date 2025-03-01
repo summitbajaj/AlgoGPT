@@ -7,6 +7,7 @@ export type ExampleTestCaseModel = components["schemas"]["ExampleTestCaseModel"]
 // for submit-code endpoint
 export type SubmitCodeRequest = components["schemas"]["SubmitCodeRequest"];
 export type SubmitCodeResponse = components["schemas"]["SubmitCodeResponse"];
+export type SubmitCodeTestCaseResult = components["schemas"]["SubmitCodeTestResult"];
 
 // for run-code endpoint
 export type PostRunCodeRequest = components["schemas"]["PostRunCodeRequest"];

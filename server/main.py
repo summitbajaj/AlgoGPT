@@ -180,7 +180,8 @@ def execute_code(request: SubmitCodeRequest, db: Session = Depends(get_db)):
         status=status.value,
         passed_tests=passed_tests,
         total_tests=total_tests,
-        failing_test=failing_test
+        failing_test=failing_test,
+        user_code=request.source_code
     )
 
 # -------------------------------
