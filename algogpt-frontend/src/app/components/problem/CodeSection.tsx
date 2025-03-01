@@ -16,14 +16,12 @@ interface CodeSectionProps {
   activeTestCase: number;
   output: string[];
   onRun: () => void;
+  onSubmit: () => void;
   onTestCaseChange: (index: number) => void;
-  onExecutionComplete: (result: PostRunCodeResponse ) => void;
-  problemId: string;
+  onExecutionComplete: (result: PostRunCodeResponse) => void;
   onTestCaseInputChange?: (index: number, newData: InputData) => void;
   testCaseInputs: InputData[];
 }
-
-// local state to track whether the user has run the code
 
 export function CodeSection({
   problem,
@@ -31,6 +29,7 @@ export function CodeSection({
   activeTestCase,
   output,
   onRun,
+  onSubmit,
   onTestCaseChange,
   onExecutionComplete,
   onTestCaseInputChange,
@@ -38,6 +37,8 @@ export function CodeSection({
 }: CodeSectionProps) {
 
   const [hasRun, setHasRun] = useState(false);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [buttonCooldown, setButtonCooldown] = useState(false);
 
   return (
     <div className="h-full w-full flex flex-col p-4">
@@ -48,16 +49,35 @@ export function CodeSection({
           onClick={() => {
             // Mark that the user has now run the code
             setHasRun(true);
+            // Enable cooldown to prevent rapid button pressing
+            setButtonCooldown(true);
+            // Set a timeout to re-enable the button after 3 seconds
+            setTimeout(() => {
+              setButtonCooldown(false);
+            }, 3000);
             // Then call the parent-provided onRun logic
             onRun();
           }}
-          disabled={isRunning}
+          disabled={isRunning || isSubmitting || buttonCooldown}
           className="bg-black text-white hover:bg-neutral-800"
       > 
           <PlayIcon className="w-4 h-4 mr-2" />
           Run
         </Button>
-        <Button className="bg-black text-white hover:bg-neutral-800">
+        <Button 
+          id="button-submit"
+          onClick={() => {
+            setIsSubmitting(true);
+            // Set a timeout to re-enable the button after 5 seconds as a fallback
+            // (in case the submission response is never received)
+            setTimeout(() => {
+              setIsSubmitting(false);
+            }, 5000);
+            onSubmit();
+          }}
+          disabled={isRunning || isSubmitting || buttonCooldown}
+          className="bg-black text-white hover:bg-neutral-800"
+        >
           <CheckIcon className="w-4 h-4 mr-2" />
           Submit
         </Button>

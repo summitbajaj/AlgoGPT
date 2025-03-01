@@ -41,6 +41,11 @@ export default function ProblemPage() {
     setTestCaseInputs(transformedTestCases)
   };
 
+  const handleSubmit = () => {
+    console.log("Submitting code...");
+    // The actual submission is handled by the PythonEditor component
+  };
+
   useEffect(() => {
     const fetchData = async () => {
       try {
@@ -63,7 +68,12 @@ export default function ProblemPage() {
   }, [params.id]);
 
   const handleRunCodeExecution = (result: PostRunCodeResponse) => {
+    // Reset running state
     setIsRunning(false);
+    
+    // Log detailed results for debugging
+    console.log('Run code result:', JSON.stringify(result, null, 2));
+    
     if (!problem) return;
   
     // Create an output array for each test case based on its test_case_id.
@@ -80,7 +90,6 @@ export default function ProblemPage() {
     setOutput(newOutput);
   };
   
-
   // new callback for updating test case inputs
   const handleTestCaseInputChange = (index: number, newData: InputData) => {
     setTestCaseInputs((prev) => {
@@ -144,9 +153,9 @@ export default function ProblemPage() {
               activeTestCase={activeTestCase}
               output={output}
               onRun={handleRun}
+              onSubmit={handleSubmit}
               onTestCaseChange={setActiveTestCase}
               onExecutionComplete={handleRunCodeExecution}
-              problemId={params.id}
               onTestCaseInputChange={handleTestCaseInputChange}
               testCaseInputs={testCaseInputs}
             />
