@@ -28,6 +28,7 @@ class SubmitCodeResponse(BaseModel):
     status: str
     passed_tests: int
     total_tests: int
+    user_code: str
     # Only present if a test failed
     failing_test: Optional[SubmitCodeTestResult] = None  
 
