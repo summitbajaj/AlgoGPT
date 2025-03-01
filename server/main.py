@@ -3,20 +3,20 @@ from fastapi import FastAPI, Depends, HTTPException, WebSocket, WebSocketDisconn
 from sqlalchemy.orm import Session
 import requests
 from database.database import SessionLocal
-from database.models import Problem, TestCase
+from database.models import Problem, TestCase, Submission
 from helpers import get_all_test_cases, get_function_name, get_benchmark_test_cases, get_problem_context_for_ai, get_all_test_cases, get_function_name, determine_submission_status, get_first_failing_test, store_submission_results
 from dotenv import load_dotenv
 import os
-from ai_model import graph
+from ai_chatbot import graph
 from langchain_core.messages import HumanMessage, AIMessage
-from shared_resources.schemas import ChatRequest
 import sys
 import json
+from ai_complexity_analyzer import AIComplexityAnalyzer, should_enhance_with_ai
 
 # Add shared_resources to Python path
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "shared_resources")))
 
-from shared_resources.schemas import SubmitCodeRequest, SubmitCodeResponse, ComplexityAnalysisRequest, ComplexityAnalysisResponse, GetProblemResponse, ExampleTestCaseModel, PostRunCodeRequest, RunCodeExecutionPayload,PostRunCodeResponse, ChatRequest, SubmitCodeExecutionPayload
+from shared_resources.schemas import SubmitCodeRequest, SubmitCodeResponse, ComplexityAnalysisRequest, ComplexityAnalysisResponse, GetProblemResponse, ExampleTestCaseModel, PostRunCodeRequest, RunCodeExecutionPayload,PostRunCodeResponse, ChatRequest, SubmitCodeExecutionPayload, ComplexityAnalysisPayload
 
 # Load environment variables from .env file
 load_dotenv()
@@ -185,42 +185,113 @@ def execute_code(request: SubmitCodeRequest, db: Session = Depends(get_db)):
     )
 
 # -------------------------------
-# 5️⃣ Execute complexity analysis (Forwards to Flask Code Runner)
+# Execute complexity analysis (Forwards to Code Runner)
 # -------------------------------
-@app.post("/analyze_complexity", response_model=ComplexityAnalysisResponse)
-def analyze_complexity(request: ComplexityAnalysisRequest, db: Session = Depends(get_db)):
-    """Fetches test cases, forwards request to code runner, and returns results."""
-
-    # Fetch benchmark test cases from the database
-    benchmark_test_cases = get_benchmark_test_cases(db, request.problem_id)
-
-    # Fetch function name from the database
-    function_name = get_function_name(db, request.problem_id)
-
-    if not benchmark_test_cases:
-        raise HTTPException(status_code=404, detail="No test cases found for this problem")
+@app.post("/analyze-complexity", response_model=ComplexityAnalysisResponse)
+def analyze_submission_complexity(
+    request: ComplexityAnalysisRequest, 
+    db: Session = Depends(get_db)
+):
+    """
+    Analyzes the time and space complexity of a successful submission,
+    with optional AI enhancement.
     
-    # Send user code + test cases to the execution service
-    execution_payload = {
-        "source_code": request.code,
-        "problem_id": request.problem_id,
-        "function_name": function_name,
-        "benchmark_cases": benchmark_test_cases,
-    }
-
-    response = requests.post(ANALYZE_COMPLEXITY_URL, json=execution_payload)
-
-    if response.status_code != 200:
-        raise HTTPException(status_code=500, detail="Code execution service failed")
-
-    response = response.json()
-
-    # Return only complexity & feedback
+    This endpoint:
+    1. Verifies that the submission exists and passed all tests
+    2. Retrieves benchmark test cases for empirical analysis
+    3. Forwards request to code-runner service for basic analysis
+    4. Optionally enhances results with AI insights 
+    5. Returns the final complexity analysis results
+    """
+    # Fetch the submission from the database
+    submission = db.query(Submission).filter(Submission.id == request.submission_id).first()
+    
+    if not submission:
+        raise HTTPException(status_code=404, detail="Submission not found")
+    
+    # Only analyze submissions that have passed all tests
+    if submission.status.value != "Accepted":
+        raise HTTPException(
+            status_code=400, 
+            detail=f"Submission has not passed all tests. Status: {submission.status.value}"
+        )
+    
+    # Get problem details
+    problem_id = submission.problem_id
+    source_code = submission.source_code
+    
+    # Get function name from problem
+    function_name = get_function_name(db, problem_id)
+    
+    # Get benchmark test cases for varying input sizes
+    benchmark_cases = get_benchmark_test_cases(db, problem_id)
+    
+    if not benchmark_cases:
+        # If no benchmark cases exist, we'll still perform static analysis
+        # but we should log this for the admin to fix
+        print(f"Warning: No benchmark test cases found for problem {problem_id}")
+    
+    # Prepare payload for code-runner service
+    execution_payload = ComplexityAnalysisPayload(
+    source_code=source_code,
+    problem_id=problem_id,
+    function_name=function_name,
+    benchmark_cases=benchmark_cases
+)
+    
+    # Forward request to code-runner service
+    try:
+        response = requests.post(ANALYZE_COMPLEXITY_URL, json=execution_payload.dict())
+        response.raise_for_status()  # Raise exception for non-200 responses
+    except requests.RequestException as e:
+        raise HTTPException(status_code=500, detail=f"Code execution service failed: {str(e)}")
+    
+    # Process response data from code-runner
+    analysis_result = response.json()
+    
+    # Check for errors
+    if "error" in analysis_result:
+        raise HTTPException(status_code=400, detail=analysis_result["error"])
+    
+    # Optionally enhance with AI analysis
+    if should_enhance_with_ai():
+        try:
+            # Initialize the AI analyzer
+            ai_analyzer = AIComplexityAnalyzer()
+            
+            # Enhance the analysis with AI insights
+            enhanced_result = ai_analyzer.analyze_complexity(
+                source_code=source_code,
+                function_name=function_name,
+                current_analysis=analysis_result
+            )
+            
+            # Log AI enhancement
+            print(f"AI-enhanced complexity analysis performed for submission {request.submission_id}")
+            
+            # Check for complexity mismatch between AI and algorithmic analysis
+            if "complexity_mismatch" in enhanced_result:
+                print(f"Note: AI analysis suggested {enhanced_result.get('ai_time_complexity')} " 
+                     f"vs. detected {enhanced_result.get('time_complexity')}")
+            
+            analysis_result = enhanced_result
+        except Exception as e:
+            # Log error but continue with the non-enhanced result
+            print(f"AI enhancement failed: {str(e)}")
+            analysis_result["ai_analysis_error"] = str(e)
+    
+    # Return final response
     return ComplexityAnalysisResponse(
-        combined_complexity=response.get("combined_complexity", "Unknown Complexity"),
-        feedback=response.get("feedback", "No feedback available.")
+        submission_id=str(submission.id),
+        problem_id=problem_id,
+        time_complexity=analysis_result.get("time_complexity", "Unknown"),
+        space_complexity=analysis_result.get("space_complexity", "Not analyzed"),
+        details=analysis_result.get("static_analysis"),
+        visualization_data=analysis_result.get("visualization_data"),
+        confidence=analysis_result.get("confidence", 0.5),
+        message=analysis_result.get("message", f"Your solution appears to run in {analysis_result.get('time_complexity', 'Unknown')}"),
+        ai_analysis=analysis_result.get("ai_analysis")
     )
-
 # -------------------------------
 # Runs userCode against test cases provided by the user and returns the results
 # -------------------------------

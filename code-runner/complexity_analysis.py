@@ -1,368 +1,725 @@
 import ast
 import time
 import numpy as np
-from textwrap import dedent
+from typing import List, Dict, Any, Tuple
 from scipy.optimize import curve_fit
+
+# ------------------------------------------------------------------------------
+# Complexity Classification Constants
+# ------------------------------------------------------------------------------
+
+class ComplexityClass:
+    """Constants for different complexity classes"""
+    CONSTANT = "O(1)"
+    LOGARITHMIC = "O(log n)"
+    LINEAR = "O(n)"
+    LINEARITHMIC = "O(n log n)"
+    QUADRATIC = "O(n²)"
+    CUBIC = "O(n³)"
+    POLYNOMIAL = "O(n^{})"  # Format with power
+    EXPONENTIAL = "O(2^n)"
+    FACTORIAL = "O(n!)"
+    UNKNOWN = "Unknown"
 
 # ------------------------------------------------------------------------------
 # Static Analysis Using AST
 # ------------------------------------------------------------------------------
 
-class ComplexityAnalyzer(ast.NodeVisitor):
+class CodeComplexityAnalyzer(ast.NodeVisitor):
     """
-    AST NodeVisitor that computes the maximum nested loop depth.
+    AST NodeVisitor that computes various complexity metrics:
+    - Maximum nested loop depth
+    - Recursive function calls
+    - Presence of certain high-complexity patterns
     """
-    def __init__(self):
+    def __init__(self, function_name: str):
+        self.function_name = function_name
         self.max_loop_depth = 0
         self.current_loop_depth = 0
-
+        self.is_recursive = False
+        self.has_sorting = False
+        self.has_recursion = False
+        self.variable_updates = {}  # Track variable updates within loops
+        self.has_binary_search_pattern = False
+        self.context_stack = []  # Track current context (loop, function, etc.)
+    
+    def visit_FunctionDef(self, node):
+        """Visit function definition nodes"""
+        self.context_stack.append("function")
+        self.generic_visit(node)
+        self.context_stack.pop()
+    
     def visit_For(self, node):
+        """Visit for loop nodes"""
         self.current_loop_depth += 1
         self.max_loop_depth = max(self.max_loop_depth, self.current_loop_depth)
+        self.context_stack.append("loop")
         self.generic_visit(node)
+        self.context_stack.pop()
         self.current_loop_depth -= 1
 
     def visit_While(self, node):
+        """Visit while loop nodes"""
         self.current_loop_depth += 1
         self.max_loop_depth = max(self.max_loop_depth, self.current_loop_depth)
+        
+        # Check for binary search pattern (e.g., while left <= right:)
+        if isinstance(node.test, ast.Compare):
+            if any(isinstance(op, (ast.LtE, ast.GtE)) for op in node.test.ops):
+                self.has_binary_search_pattern = True
+                
+        self.context_stack.append("loop")
         self.generic_visit(node)
+        self.context_stack.pop()
         self.current_loop_depth -= 1
+    
+    def visit_Call(self, node):
+        """Visit function call nodes"""
+        # Check for recursive calls
+        if isinstance(node.func, ast.Name) and node.func.id == self.function_name:
+            self.is_recursive = True
+            self.has_recursion = True
+        
+        # Check for sorting calls
+        if isinstance(node.func, ast.Attribute):
+            if node.func.attr == 'sort' or node.func.attr == 'sorted':
+                self.has_sorting = True
+                
+        self.generic_visit(node)
 
 
-def analyze_complexity(source_code):
+def analyze_static_complexity(source_code: str, function_name: str) -> Dict[str, Any]:
     """
-    Analyzes the source code using AST and returns the maximum loop nesting depth.
+    Analyzes the source code using AST and returns complexity metrics.
 
     Parameters:
         source_code (str): The user's submitted code.
+        function_name (str): The name of the function to analyze.
 
     Returns:
-        dict: {"loop_depth": int} or {"error": message}
+        dict: Complexity metrics including loop_depth, is_recursive, etc.
     """
     try:
         tree = ast.parse(source_code)
     except SyntaxError as e:
         return {"error": f"Syntax Error: {e}"}
 
-    analyzer = ComplexityAnalyzer()
+    analyzer = CodeComplexityAnalyzer(function_name)
     analyzer.visit(tree)
-    return {"loop_depth": analyzer.max_loop_depth}
-
-
-# ------------------------------------------------------------------------------
-# Empirical Testing Using Benchmark Test Cases (from the DB)
-# ------------------------------------------------------------------------------
-
-# def get_benchmark_test_cases(problem_id):
-#     """
-#     Fetch benchmark test cases for the given problem from the database.
     
-#     Each test case is expected to be a dictionary with keys:
-#       - "input": a list (or tuple) of arguments (positional) for the function.
-#       - "size": an integer representing the input size.
-      
-#     Note: This is pseudocode. Replace with your actual DB retrieval logic.
-#     """
-#     # Example benchmark cases (replace with real DB calls)
-#     return [
-#         {"input": [list(range(10))], "size": 10},
-#         {"input": [list(range(100))], "size": 100},
-#         {"input": [list(range(1000))], "size": 1000},
-#         # Add additional benchmark cases as needed.
-#     ]
+    # Determine the static complexity class based on the metrics
+    complexity_class = determine_static_complexity_class(
+        analyzer.max_loop_depth,
+        analyzer.is_recursive,
+        analyzer.has_sorting,
+        analyzer.has_binary_search_pattern
+    )
+    
+    return {
+        "loop_depth": analyzer.max_loop_depth,
+        "is_recursive": analyzer.is_recursive,
+        "has_sorting": analyzer.has_sorting,
+        "has_binary_search_pattern": analyzer.has_binary_search_pattern,
+        "static_complexity": complexity_class
+    }
 
 
-def measure_runtime_with_benchmarks(func, benchmark_cases, repeats=3):
+def determine_static_complexity_class(
+    loop_depth: int,
+    is_recursive: bool,
+    has_sorting: bool,
+    has_binary_search: bool
+) -> str:
     """
-    Measures the average runtime of a function using benchmark test cases.
+    Determines the complexity class based on static analysis metrics.
     
-    Each benchmark test case is expected to be a dictionary with keys:
-      - "input_data": the input for the function. If it's a dict, the function is called with keyword arguments.
-                      If it's a list/tuple, the function is called with positional arguments.
-      - "size": an integer representing the input size.
-      
-    Parameters:
-        func (callable): The function to test.
-        benchmark_cases (list): List of benchmark test cases.
-        repeats (int): Number of repetitions per test case.
+    Args:
+        loop_depth: Maximum depth of nested loops
+        is_recursive: Whether the function calls itself
+        has_sorting: Whether the function uses sorting operations
+        has_binary_search: Whether binary search pattern was detected
         
     Returns:
-        tuple: (sizes, timings)
-          - sizes (list): List of test case sizes.
-          - timings (list): Average runtime for each test case.
+        String representing the complexity class
     """
+    # Binary search pattern
+    if has_binary_search:
+        return ComplexityClass.LOGARITHMIC
+    
+    # Sorting operations typically have O(n log n) complexity
+    if has_sorting:
+        return ComplexityClass.LINEARITHMIC
+    
+    # Recursive functions are complex to analyze statically
+    if is_recursive:
+        # This is a simplification - proper recursion analysis 
+        # would need to examine the recursion structure
+        return ComplexityClass.UNKNOWN
+    
+    # Classify based on loop nesting depth
+    if loop_depth == 0:
+        return ComplexityClass.CONSTANT
+    elif loop_depth == 1:
+        return ComplexityClass.LINEAR
+    elif loop_depth == 2:
+        return ComplexityClass.QUADRATIC
+    elif loop_depth == 3:
+        return ComplexityClass.CUBIC
+    elif loop_depth > 3:
+        return ComplexityClass.POLYNOMIAL.format(loop_depth)
+    
+    return ComplexityClass.UNKNOWN
+
+# ------------------------------------------------------------------------------
+# Benchmark-based Empirical Analysis
+# ------------------------------------------------------------------------------
+
+def measure_runtime_with_benchmarks(
+    func,
+    benchmark_cases: List[Dict[str, Any]],
+    repeats: int = 5
+) -> Tuple[List[int], List[float]]:
+    """Measures the runtime of a function using benchmark test cases."""
     sizes = []
     timings = []
+    
+    # Ensure we have at least 3 different sizes for meaningful curve fitting
+    if len(benchmark_cases) < 3:
+        return sizes, timings
+        
     for case in benchmark_cases:
-        # Get the size, or attempt to derive it if missing.
+        # Get input size
         size = case.get("size")
         if size is None:
             input_data = case.get("input_data")
-            if isinstance(input_data, list):
+            if isinstance(input_data, dict) and "nums" in input_data:
+                size = len(input_data["nums"])
+            elif isinstance(input_data, dict) and "arr" in input_data:
+                size = len(input_data["arr"])
+            elif isinstance(input_data, list):
                 size = len(input_data)
             else:
-                size = 0
+                continue
+                
         sizes.append(size)
-        
         test_input = case.get("input_data")
-        start = time.perf_counter()
+        
+        # Run multiple times and take the maximum to better capture worst-case behavior
+        max_duration = 0
         for _ in range(repeats):
-            # If input_data is a dict, call with keyword arguments.
+            start = time.perf_counter()
+            
             if isinstance(test_input, dict):
                 func(**test_input)
-            # If it's a list or tuple, call with positional arguments.
             elif isinstance(test_input, (list, tuple)):
                 func(*test_input)
-            # Otherwise, call with a single argument.
             else:
                 func(test_input)
-        end = time.perf_counter()
-        avg_time = (end - start) / repeats
-        timings.append(avg_time)
+                
+            end = time.perf_counter()
+            max_duration = max(max_duration, end - start)
+            
+        # Use max duration to better capture worst-case complexity
+        timings.append(max_duration)
+        
     return sizes, timings
 
-
-
-
 # ------------------------------------------------------------------------------
-# Multi-Model Fitting to Estimate Empirical Complexity
+# Curve Fitting and Model Selection
 # ------------------------------------------------------------------------------
 
-def fit_models(sizes, timings):
+def fit_complexity_models(
+    sizes: List[int],
+    timings: List[float]
+) -> Dict[str, Any]:
     """
-    Attempts to fit several candidate models to the empirical timing data.
+    Fits various time complexity models to the empirical timing data.
     
-    Models:
-      - Poly (power law): T(n) = a * n^b
-      - Linearithmic:    T(n) = a * n * log(n) + c
-      - Logarithmic:     T(n) = a * log(n) + c
-      - Constant:        T(n) = c
-      - Exponential:     T(n) = a * exp(b * n)
-    
+    Parameters:
+        sizes: List of input sizes
+        timings: List of corresponding runtimes
+        
     Returns:
-        dict: A dictionary with model names as keys. Each entry contains
-              parameters, RMSE (root-mean-square error), and predictions.
+        Dictionary with fitted models and their parameters
     """
+    if len(sizes) < 3:
+        return {"error": "Not enough data points for curve fitting"}
+        
     results = {}
     sizes_arr = np.array(sizes)
     timings_arr = np.array(timings)
-
-    # --- Poly model via log-log linear regression ---
-    # T(n) = a * n^b  => log T(n) = log a + b * log n
-    log_sizes = np.log(sizes_arr)
-    log_timings = np.log(timings_arr)
-    poly_coeffs = np.polyfit(log_sizes, log_timings, 1)
-    b = poly_coeffs[0]
-    a = np.exp(poly_coeffs[1])
-    poly_pred = a * sizes_arr**b
-    rmse_poly = np.sqrt(np.mean((timings_arr - poly_pred)**2))
-    results['poly'] = {
-        'model': 'poly',
-        'parameters': {'a': a, 'b': b},
-        'rmse': rmse_poly,
-        'prediction': poly_pred.tolist()
+    
+    # Define the complexity functions
+    def constant_func(n, a):
+        return a * np.ones_like(n)
+        
+    def log_func(n, a, b):
+        return a * np.log(n) + b
+        
+    def linear_func(n, a, b):
+        return a * n + b
+        
+    def linearithmic_func(n, a, b):
+        return a * n * np.log(n) + b
+        
+    def quadratic_func(n, a, b):
+        return a * n**2 + b
+        
+    def cubic_func(n, a, b):
+        return a * n**3 + b
+        
+    def exponential_func(n, a, b, c):
+        return a * np.exp(b * n) + c
+    
+    # Models to test
+    models = {
+        "constant": (constant_func, [1]),  # Initial guess
+        "logarithmic": (log_func, [1, 0]),
+        "linear": (linear_func, [1, 0]),
+        "linearithmic": (linearithmic_func, [1, 0]),
+        "quadratic": (quadratic_func, [1, 0]),
+        "cubic": (cubic_func, [1, 0]),
+        "exponential": (exponential_func, [0.1, 0.01, 0])
     }
-
-    # --- Linearithmic model: T(n) = a * n * log(n) + c ---
-    def linlog_model(n, a, c):
-        return a * n * np.log(n) + c
-
-    try:
-        popt_linlog, _ = curve_fit(linlog_model, sizes_arr, timings_arr, maxfev=10000)
-        linlog_pred = linlog_model(sizes_arr, *popt_linlog)
-        rmse_linlog = np.sqrt(np.mean((timings_arr - linlog_pred)**2))
-        results['linlog'] = {
-            'model': 'linlog',
-            'parameters': {'a': popt_linlog[0], 'c': popt_linlog[1]},
-            'rmse': rmse_linlog,
-            'prediction': linlog_pred.tolist()
-        }
-    except Exception as e:
-        results['linlog'] = {'error': str(e)}
-
-    # --- Logarithmic model: T(n) = a * log(n) + c ---
-    def log_model(n, a, c):
-        return a * np.log(n) + c
-
-    try:
-        popt_log, _ = curve_fit(log_model, sizes_arr, timings_arr, maxfev=10000)
-        log_pred = log_model(sizes_arr, *popt_log)
-        rmse_log = np.sqrt(np.mean((timings_arr - log_pred)**2))
-        results['log'] = {
-            'model': 'log',
-            'parameters': {'a': popt_log[0], 'c': popt_log[1]},
-            'rmse': rmse_log,
-            'prediction': log_pred.tolist()
-        }
-    except Exception as e:
-        results['log'] = {'error': str(e)}
-
-    # --- Constant model: T(n) = c ---
-    def const_model(n, c):
-        return c * np.ones_like(n)
-
-    try:
-        popt_const, _ = curve_fit(const_model, sizes_arr, timings_arr, maxfev=10000)
-        const_pred = const_model(sizes_arr, *popt_const)
-        rmse_const = np.sqrt(np.mean((timings_arr - const_pred)**2))
-        results['const'] = {
-            'model': 'const',
-            'parameters': {'c': popt_const[0]},
-            'rmse': rmse_const,
-            'prediction': const_pred.tolist()
-        }
-    except Exception as e:
-        results['const'] = {'error': str(e)}
-
-    # --- Exponential model: T(n) = a * exp(b * n) ---
-        # --- Exponential model: T(n) = a * exp(b * n) ---
-    def exp_model(n, a, b):
-        return a * np.exp(b * n)
-
-    try:
-        import warnings
-        with warnings.catch_warnings():
-            warnings.simplefilter("ignore", RuntimeWarning)
-            # Provide an initial guess for a and b.
-            popt_exp, _ = curve_fit(exp_model, sizes_arr, timings_arr, p0=[1e-6, 1e-3], maxfev=10000)
-        exp_pred = exp_model(sizes_arr, *popt_exp)
-        rmse_exp = np.sqrt(np.mean((timings_arr - exp_pred)**2))
-        results['exp'] = {
-            'model': 'exp',
-            'parameters': {'a': popt_exp[0], 'b': popt_exp[1]},
-            'rmse': rmse_exp,
-            'prediction': exp_pred.tolist()
-        }
-    except Exception as e:
-        results['exp'] = {'error': str(e)}
-
-
+    
+    # Fit each model and calculate R² value
+    for name, (func, p0) in models.items():
+        try:
+            # Skip exponential for large inputs to avoid overflow
+            if name == "exponential" and max(sizes_arr) > 1000:
+                continue
+                
+            popt, _ = curve_fit(func, sizes_arr, timings_arr, p0=p0, maxfev=5000)
+            predictions = func(sizes_arr, *popt)
+            
+            # Calculate R² (coefficient of determination)
+            ss_total = np.sum((timings_arr - np.mean(timings_arr))**2)
+            ss_residual = np.sum((timings_arr - predictions)**2)
+            r_squared = 1 - (ss_residual / ss_total) if ss_total > 0 else 0
+            
+            # Calculate normalized root mean square error
+            rmse = np.sqrt(np.mean((timings_arr - predictions)**2))
+            nrmse = rmse / (np.max(timings_arr) - np.min(timings_arr)) if np.max(timings_arr) > np.min(timings_arr) else rmse
+            
+            results[name] = {
+                "parameters": popt.tolist(),
+                "r_squared": r_squared,
+                "rmse": rmse,
+                "nrmse": nrmse,
+                "predictions": predictions.tolist()
+            }
+        except Exception as e:
+            results[name] = {"error": str(e)}
+    
     return results
 
-
-# ------------------------------------------------------------------------------
-# Combined Complexity Analysis Function
-# ------------------------------------------------------------------------------
-
-def combine_complexity_analysis(source_code, problem_id, function_name, benchmark_cases, repeats=3):
+def check_theoretical_growth(
+    sizes: List[int],
+    timings: List[float],
+    model_name: str,
+    predictions: List[float]
+) -> bool:
     """
-    Combines static analysis (AST-based) and empirical testing using benchmark test cases.
+    Checks if timing data follows the theoretical growth rate for the given model.
+    Returns True if the growth pattern matches theoretical expectations.
+    """
+    if len(sizes) < 3 or len(timings) < 3:
+        return False
+        
+    # Get growth ratios of actual timings
+    timing_ratios = []
+    for i in range(1, len(timings)):
+        if timings[i-1] > 0:
+            timing_ratios.append(timings[i] / timings[i-1])
     
-    The function first obtains a static estimate from the code (e.g. loop depth) and then
-    fits several candidate models to the timing data. If the fitted exponent (from a poly model)
-    appears unrealistic (e.g. negative or near zero), it falls back to a static baseline:
-      - Loop depth 0: O(1)
-      - Loop depth 1: O(n)
-      - Loop depth 2: O(n²)
-      - etc.
+    # Get size ratios
+    size_ratios = []
+    for i in range(1, len(sizes)):
+        size_ratios.append(sizes[i] / sizes[i-1])
+    
+    # Expected growth factors for different complexity classes
+    if model_name == "constant":
+        # Constant time: O(1) - timing should not change with size
+        expected_ratios = [1.0] * len(timing_ratios)
+    elif model_name == "logarithmic":
+        # Logarithmic time: O(log n) - timing should grow slower than linear
+        expected_ratios = [max(1.0, np.log(size_ratios[i]) / np.log(2)) for i in range(len(size_ratios))]
+    elif model_name == "linear":
+        # Linear time: O(n) - timing should grow proportionally to size
+        expected_ratios = size_ratios
+    elif model_name == "linearithmic":
+        # Linearithmic time: O(n log n) - timing should grow slightly faster than linear
+        expected_ratios = [size_ratios[i] * max(1.0, np.log(size_ratios[i]) / np.log(2)) for i in range(len(size_ratios))]
+    elif model_name == "quadratic":
+        # Quadratic time: O(n²) - timing should grow with square of size
+        expected_ratios = [ratio**2 for ratio in size_ratios]
+    elif model_name == "cubic":
+        # Cubic time: O(n³) - timing should grow with cube of size
+        expected_ratios = [ratio**3 for ratio in size_ratios]
+    elif model_name == "exponential":
+        # Exponential time: O(2^n) - timing should grow exponentially
+        expected_ratios = [2**(size_ratios[i] - 1) for i in range(len(size_ratios))]
+    else:
+        return False
+    
+    # Check if actual ratios are close to expected ratios
+    # Use a tolerance factor since real-world timing has noise
+    match_count = 0
+    for i in range(len(timing_ratios)):
+        # Allow larger tolerance for exponential due to its rapid growth
+        tolerance = 2.0 if model_name == "exponential" else 0.5
+        
+        # For small expected ratios, use absolute tolerance
+        if expected_ratios[i] < 1.2:
+            if abs(timing_ratios[i] - expected_ratios[i]) < 0.3:
+                match_count += 1
+        else:
+            # For larger ratios, use relative tolerance
+            relative_diff = abs(timing_ratios[i] - expected_ratios[i]) / expected_ratios[i]
+            if relative_diff < tolerance:
+                match_count += 1
+    
+    # Consider it a match if majority of growth ratios match theoretical expectations
+    return match_count >= len(timing_ratios) // 2
+
+def select_best_complexity_model(
+    fit_results: Dict[str, Any],
+    sizes: List[int],
+    timings: List[float],
+    static_analysis: Dict[str, Any]
+) -> Dict[str, Any]:
+    """Selects the best complexity model with improved validation."""
+    best_model = None
+    best_score = -float('inf')
+    
+    # Define complexity classes for each model
+    complexity_map = {
+        "constant": ComplexityClass.CONSTANT,
+        "logarithmic": ComplexityClass.LOGARITHMIC,
+        "linear": ComplexityClass.LINEAR,
+        "linearithmic": ComplexityClass.LINEARITHMIC,
+        "quadratic": ComplexityClass.QUADRATIC,
+        "cubic": ComplexityClass.CUBIC,
+        "exponential": ComplexityClass.EXPONENTIAL
+    }
+    
+    # Check if timing data shows meaningful variation
+    min_timing = min(timings)
+    max_timing = max(timings)
+    timing_range_ratio = max_timing / min_timing if min_timing > 0 else 1.0
+    
+    # If timings don't vary much (less than 20% difference between min and max),
+    # empirical analysis is unreliable
+    if timing_range_ratio < 1.2:
+        # Empirical analysis unreliable, return static analysis result
+        static_complexity = static_analysis.get("static_complexity", ComplexityClass.UNKNOWN)
+        return {
+            "model": "static_only",
+            "complexity": static_complexity,
+            "confidence": 0.6,  # Medium confidence for static-only
+            "details": {
+                "timing_variation_insufficient": True,
+                "timing_range_ratio": timing_range_ratio
+            }
+        }
+    
+    # Enhanced model selection with complexity penalties
+    complexity_penalty = {
+        "constant": 0,
+        "logarithmic": 0.05,
+        "linear": 0.1,
+        "linearithmic": 0.15,
+        "quadratic": 0.2,
+        "cubic": 0.3,
+        "exponential": 0.4
+    }
+    
+    # Check if model predictions match the theoretical growth rate
+    for name, result in fit_results.items():
+        if "error" in result:
+            continue
+            
+        r_squared = result["r_squared"]
+        penalty = complexity_penalty.get(name, 0)
+        
+        # Theoretical growth checks
+        theoretical_match = check_theoretical_growth(
+            sizes, timings, name, result.get("predictions", [])
+        )
+        
+        # Bonus for theoretical match
+        theory_bonus = 0.2 if theoretical_match else 0
+        
+        # Calculate score
+        score = r_squared - penalty + theory_bonus
+        
+        if score > best_score:
+            best_score = score
+            best_model = name
+    
+    if best_model is None:
+        return {
+            "model": "unknown",
+            "complexity": ComplexityClass.UNKNOWN,
+            "confidence": 0.0
+        }
+    
+    # Calculate confidence with more factors
+    base_confidence = min(1.0, max(0.0, fit_results[best_model]["r_squared"]))
+    
+    # Reduce confidence if timing range ratio is small
+    confidence_multiplier = min(1.0, timing_range_ratio / 5.0)
+    confidence = base_confidence * confidence_multiplier
+    
+    # If static and empirical match, boost confidence
+    if complexity_map.get(best_model) == static_analysis.get("static_complexity"):
+        confidence = min(0.95, confidence + 0.2)
+    
+    return {
+        "model": best_model,
+        "complexity": complexity_map.get(best_model, ComplexityClass.UNKNOWN),
+        "confidence": confidence,
+        "details": fit_results[best_model]
+    }
+
+
+# ------------------------------------------------------------------------------
+# Visualization Data Preparation
+# ------------------------------------------------------------------------------
+
+def prepare_visualization_data(
+    sizes: List[int],
+    timings: List[float],
+    fit_results: Dict[str, Any],
+    best_model: str
+) -> Dict[str, Any]:
+    """
+    Prepares data for visualization of the complexity analysis.
     
     Parameters:
-        source_code (str): The user's submitted code.
-        function_name (str): The name of the function in the Solution class.
-        problem_id (int): The problem ID used to fetch benchmark test cases.
-        benchmark_cases (list): Benchmark test cases to use for empirical analysis.
-        repeats (int): Number of repetitions per test case.
+        sizes: List of input sizes
+        timings: List of measured runtimes
+        fit_results: Dictionary of fitted models
+        best_model: Name of the best model
         
     Returns:
-        dict: {
-            "loop_depth": int,
-            "static_complexity": str,   # Complexity inferred from static analysis.
-            "empirical_complexity": str,# Complexity inferred from model fitting.
-            "combined_complexity": str, # Final classification combining both.
-            "best_model": str,          # The key of the best-fitting model.
-            "model_fits": dict,         # Detailed fit results for each candidate model.
-            "timings": list,            # Measured runtimes for benchmark cases.
-            "problem_id": int           # The problem ID.
-        }
-        or {"error": message} if an error occurs.
+        Dictionary with visualization data
     """
-    # --- Static Analysis ---
-    analysis_result = analyze_complexity(source_code)
-    if "error" in analysis_result:
-        return analysis_result
-    loop_depth = analysis_result["loop_depth"]
-    
-    # Infer a static complexity baseline from loop depth.
-    if loop_depth == 0:
-        static_complexity = "O(1) (constant)"
-    elif loop_depth == 1:
-        static_complexity = "O(n) (linear)"
-    elif loop_depth == 2:
-        static_complexity = "O(n²) (quadratic)"
+    # Generate more points for smoother curves
+    if len(sizes) >= 2:
+        min_size, max_size = min(sizes), max(sizes)
+        smooth_sizes = np.linspace(min_size, max_size, 100).tolist()
     else:
-        static_complexity = f"Approximately O(n^{loop_depth})"
+        smooth_sizes = sizes
+        
+    visualization_data = {
+        "raw_data": {
+            "sizes": sizes,
+            "timings": timings
+        },
+        "models": {}
+    }
     
-    # --- Execute User Code to Extract Function ---
+    # Add fitted curves for each model
+    for name, result in fit_results.items():
+        if "error" in result or "parameters" not in result:
+            continue
+            
+        # Mark the best model
+        is_best = (name == best_model)
+        
+        visualization_data["models"][name] = {
+            "is_best": is_best,
+            "r_squared": result["r_squared"],
+            "predictions": result["predictions"]
+        }
+    
+    return visualization_data
+
+
+# ------------------------------------------------------------------------------
+# Final Complexity Determination
+# ------------------------------------------------------------------------------
+
+def combine_complexity_analysis(
+    static_complexity: str,
+    empirical_complexity: str,
+    static_analysis: Dict[str, Any],
+    empirical_analysis: Dict[str, Any]
+) -> Tuple[str, float]:
+    """
+    Combines static and empirical analysis results with improved heuristics.
+    """
+    # Static analysis takes precedence for certain patterns
+    if static_analysis.get("has_binary_search_pattern", False):
+        return ComplexityClass.LOGARITHMIC, 0.8
+        
+    if static_analysis.get("has_sorting", False):
+        return ComplexityClass.LINEARITHMIC, 0.8
+    
+    # Check if empirical analysis has timing_variation_insufficient flag
+    if (empirical_analysis.get("details", {}).get("timing_variation_insufficient", False) or
+        empirical_analysis.get("confidence", 0) < 0.3):
+        # Insufficient empirical data, rely on static analysis
+        return static_complexity, 0.6
+    
+    # If they agree, high confidence
+    if static_complexity == empirical_complexity:
+        return static_complexity, 0.9
+
+    # Loop-based complexity cases
+    loop_depth = static_analysis.get("loop_depth", 0)
+    if loop_depth >= 1:
+        # For code with loops, prefer static analysis unless empirical is very confident
+        if empirical_analysis.get("confidence", 0) > 0.8:
+            return empirical_complexity, empirical_analysis.get("confidence", 0.7)
+        else:
+            # For nested loops, static analysis is often more reliable
+            return static_complexity, 0.7
+    
+    # Prefer the more pessimistic estimate for general cases
+    complexity_rank = {
+        ComplexityClass.CONSTANT: 1,
+        ComplexityClass.LOGARITHMIC: 2,
+        ComplexityClass.LINEAR: 3,
+        ComplexityClass.LINEARITHMIC: 4,
+        ComplexityClass.QUADRATIC: 5,
+        ComplexityClass.CUBIC: 6,
+        ComplexityClass.EXPONENTIAL: 7,
+        ComplexityClass.FACTORIAL: 8,
+        ComplexityClass.UNKNOWN: 9
+    }
+    
+    static_rank = complexity_rank.get(static_complexity, 9)
+    empirical_rank = complexity_rank.get(empirical_complexity, 9)
+    
+    if static_rank >= empirical_rank:
+        return static_complexity, 0.7
+    else:
+        return empirical_complexity, 0.7
+
+def generate_complexity_message(
+    complexity: str,
+    confidence: float
+) -> str:
+    """
+    Generates a human-readable message about the complexity.
+    
+    Parameters:
+        complexity: The determined complexity class
+        confidence: Confidence level (0.0 to 1.0)
+        
+    Returns:
+        String message
+    """
+    confidence_str = "high" if confidence > 0.7 else "moderate" if confidence > 0.4 else "low"
+    
+    complexity_explanations = {
+        ComplexityClass.CONSTANT: "constant time regardless of input size",
+        ComplexityClass.LOGARITHMIC: "logarithmic time (typical of binary search algorithms)",
+        ComplexityClass.LINEAR: "linear time (scales directly with input size)",
+        ComplexityClass.LINEARITHMIC: "linearithmic time (typical of efficient sorting algorithms)",
+        ComplexityClass.QUADRATIC: "quadratic time (typical of nested loops)",
+        ComplexityClass.CUBIC: "cubic time (typical of triple nested loops)",
+        ComplexityClass.EXPONENTIAL: "exponential time (may be inefficient for large inputs)",
+        ComplexityClass.FACTORIAL: "factorial time (typically inefficient for all but small inputs)",
+        ComplexityClass.UNKNOWN: "unknown time complexity"
+    }
+    
+    explanation = complexity_explanations.get(complexity, "")
+    
+    if confidence > 0.7:
+        message = f"Your solution has {complexity} time complexity ({explanation})."
+    else:
+        message = f"Your solution appears to have {complexity} time complexity ({explanation}), but our confidence is {confidence_str}."
+    
+    return message
+
+
+# ------------------------------------------------------------------------------
+# Main Analysis Function
+# ------------------------------------------------------------------------------
+
+def analyze_complexity(
+    source_code: str,
+    problem_id: int,
+    function_name: str,
+    benchmark_cases: List[Dict[str, Any]],
+    repeats: int = 5
+) -> Dict[str, Any]:
+    """
+    Enhanced complexity analysis with better reliability.
+    """
+    # 1. Static analysis
+    static_analysis = analyze_static_complexity(source_code, function_name)
+    if "error" in static_analysis:
+        return {"error": static_analysis["error"]}
+    
+    # Extract the function from the code
     global_vars = {"__builtins__": __builtins__}
     try:
         exec(source_code, global_vars)
     except Exception as e:
-        return {"error": f"Error executing submitted code: {e}"}
+        return {"error": f"Error executing code: {e}"}
     
     if "Solution" not in global_vars:
-        return {"error": "No class named 'Solution' found in the submitted code."}
+        return {"error": "No Solution class found in the code"}
     
-    sol_instance = global_vars["Solution"]()
-    if not hasattr(sol_instance, function_name):
-        return {"error": f"Function '{function_name}' not found in Solution class."}
-    func = getattr(sol_instance, function_name)
+    try:
+        solution_instance = global_vars["Solution"]()
+        func = getattr(solution_instance, function_name)
+    except Exception as e:
+        return {"error": f"Error accessing function {function_name}: {e}"}
     
-    # --- Empirical Testing using Benchmark Cases ---
-    sizes, timings = measure_runtime_with_benchmarks(func, benchmark_cases, repeats)
+    # 2. Empirical analysis (if we have benchmark cases)
+    if benchmark_cases and len(benchmark_cases) >= 3:
+        sizes, timings = measure_runtime_with_benchmarks(func, benchmark_cases, repeats)
+        
+        if len(sizes) >= 3:  # Need at least 3 points for meaningful curve fitting
+            # 3. Fit complexity models
+            fit_results = fit_complexity_models(sizes, timings)
+            
+            if "error" not in fit_results:
+                # 4. Select best model with enhanced validation
+                empirical_model = select_best_complexity_model(
+                    fit_results, sizes, timings, static_analysis
+                )
+                
+                # 5. Prepare visualization data
+                visualization_data = prepare_visualization_data(
+                    sizes, 
+                    timings, 
+                    fit_results, 
+                    empirical_model["model"]
+                )
+                
+                # 6. Combined analysis with improved heuristics
+                time_complexity, confidence = combine_complexity_analysis(
+                    static_analysis["static_complexity"],
+                    empirical_model["complexity"],
+                    static_analysis,
+                    empirical_model
+                )
+                
+                return {
+                    "problem_id": problem_id,
+                    "time_complexity": time_complexity,
+                    "space_complexity": "Not analyzed",
+                    "confidence": confidence,
+                    "static_analysis": static_analysis,
+                    "empirical_analysis": empirical_model,
+                    "visualization_data": visualization_data,
+                    "message": generate_complexity_message(time_complexity, confidence)
+                }
     
-    # --- Multi-Model Fitting ---
-    model_fits = fit_models(sizes, timings)
-    
-    # Select best model based on lowest RMSE (ignoring models that errored)
-    best_model = None
-    best_rmse = float('inf')
-    for key, fit in model_fits.items():
-        if 'rmse' in fit and fit['rmse'] < best_rmse:
-            best_rmse = fit['rmse']
-            best_model = key
-    
-    # --- Empirical Complexity Classification ---
-    # Start by using the poly (power law) model if available.
-    empirical_complexity = None
-    if best_model == 'poly':
-        exponent = model_fits['poly']['parameters']['b']
-        # If the fitted exponent is negative or near zero, it's likely noise.
-        if exponent <= 0.1:
-            empirical_complexity = static_complexity
-        elif abs(exponent - 1) < 0.3:
-            empirical_complexity = "O(n) (linear)"
-        elif abs(exponent - 2) < 0.5:
-            empirical_complexity = "O(n²) (quadratic)"
-        else:
-            empirical_complexity = f"Approximately O(n^{exponent:.2f})"
-    elif best_model == 'linlog':
-        empirical_complexity = "O(n log n) (linearithmic)"
-    elif best_model == 'log':
-        empirical_complexity = "O(log n) (logarithmic)"
-    elif best_model == 'const':
-        empirical_complexity = "O(1) (constant)"
-    elif best_model == 'exp':
-        empirical_complexity = "Exponential time"
-    else:
-        empirical_complexity = "Unable to determine complexity"
-    
-    # --- Combine the Two Approaches ---
-    # If the empirical complexity seems unrealistic (e.g. negative exponent) then default to static.
-    if empirical_complexity is None or empirical_complexity.startswith("Approximately O(n^-"):
-        combined_complexity = static_complexity
-    else:
-        # For now, we can provide both. You might decide on rules to choose one over the other.
-        combined_complexity = f"{empirical_complexity} (empirical), {static_complexity} (static)"
-    
+    # Fallback to static analysis only
     return {
-        "loop_depth": loop_depth,
-        "static_complexity": static_complexity,
-        "empirical_complexity": empirical_complexity,
-        "combined_complexity": combined_complexity,
-        "best_model": best_model,
-        "model_fits": model_fits,
-        "timings": timings,
-        "problem_id": problem_id
+        "problem_id": problem_id,
+        "time_complexity": static_analysis["static_complexity"],
+        "space_complexity": "Not analyzed",
+        "confidence": 0.6,
+        "static_analysis": static_analysis,
+        "empirical_analysis": None,
+        "visualization_data": None,
+        "message": generate_complexity_message(static_analysis["static_complexity"], 0.6)
     }
-
-

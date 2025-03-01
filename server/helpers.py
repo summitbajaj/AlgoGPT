@@ -1,8 +1,8 @@
 from sqlalchemy.orm import Session
-from database.models import TestCase, Problem, Example, Solution
+from fastapi import HTTPException
+from database.models import TestCase, Problem, Example, Solution, Submission, SubmissionTestResult, SubmissionStatus
 from shared_resources.schemas import SubmitCodeTestCase
 from typing import List, Dict, Any, Optional
-from database.models import Submission, SubmissionTestResult, SubmissionStatus
 import uuid
 
 def get_all_test_cases(session: Session, problem_id: int) -> List[SubmitCodeTestCase]:
@@ -13,15 +13,52 @@ def get_all_test_cases(session: Session, problem_id: int) -> List[SubmitCodeTest
              "expected_output": tc.expected_output, 
              "order_sensitive": tc.order_sensitive} for tc in test_cases]
 
-def get_function_name(session: Session, problem_id: int):
-    """Fetches the function name for a given problem ID."""
+def get_function_name(session: Session, problem_id: int) -> str:
+    """Gets the function name for a problem."""
     problem = session.query(Problem).filter_by(id=problem_id).first()
+    
+    if not problem:
+        raise HTTPException(status_code=404, detail="Problem not found")
+    
     return problem.function_name
 
-def get_benchmark_test_cases(session: Session, problem_id: int):
-    """Fetches benchmark test cases for a given problem ID."""
-    benchmark_test_cases = session.query(TestCase).filter_by(problem_id=problem_id, benchmark_test_case=True).all()
-    return [{"input_data": tc.input_data, "expected_output": tc.expected_output, "size": tc.test_case_size} for tc in benchmark_test_cases]
+def get_benchmark_test_cases(session: Session, problem_id: int) -> List[Dict[str, Any]]:
+    """Fetches benchmark test cases with varying input sizes for a given problem."""
+    benchmark_test_cases = session.query(TestCase).filter_by(
+        problem_id=problem_id, 
+        benchmark_test_case=True
+    ).all()
+    
+    return [
+        {
+            "input_data": tc.input_data, 
+            "expected_output": tc.expected_output, 
+            "size": tc.test_case_size
+        } 
+        for tc in benchmark_test_cases
+    ]
+
+def verify_submission_success(session: Session, submission_id: str) -> Dict[str, Any]:
+    """
+    Verifies that a submission exists and all tests passed.
+    Returns the submission details if successful.
+    """
+    submission = session.query(Submission).filter_by(id=submission_id).first()
+    
+    if not submission:
+        raise HTTPException(status_code=404, detail="Submission not found")
+    
+    if submission.status.value != "Accepted":
+        raise HTTPException(
+            status_code=400, 
+            detail=f"Submission has not passed all tests. Status: {submission.status.value}"
+        )
+    
+    return {
+        "submission_id": str(submission.id),
+        "problem_id": submission.problem_id,
+        "source_code": submission.source_code
+    }
 
 def get_problem_context_for_ai(session: Session, problem_id: int):
     """
