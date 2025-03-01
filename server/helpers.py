@@ -1,7 +1,9 @@
 from sqlalchemy.orm import Session
 from database.models import TestCase, Problem, Example, Solution
-from shared_resources.schemas import SubmitCodeTestCase, SubmitCodeTestResult
-from typing import List
+from shared_resources.schemas import SubmitCodeTestCase
+from typing import List, Dict, Any, Optional
+from database.models import Submission, SubmissionTestResult, SubmissionStatus
+import uuid
 
 def get_all_test_cases(session: Session, problem_id: int) -> List[SubmitCodeTestCase]:
     """Fetches test cases for a given problem ID."""
@@ -61,3 +63,134 @@ def get_problem_context_for_ai(session: Session, problem_id: int):
 
     return problem_details
 
+def determine_submission_status(test_results: List[Dict[str, Any]]) -> SubmissionStatus:
+    """
+    Determines the overall submission status based on test results.
+    
+    Args:
+        test_results: List of test result dictionaries
+        
+    Returns:
+        SubmissionStatus enum value
+    """
+    total_tests = len(test_results)
+    passed_tests = sum(1 for result in test_results if result.get("passed", False))
+    
+    # Check for compilation errors (should appear in the first test case)
+    if total_tests > 0 and "Error in code" in str(test_results[0].get("output", "")):
+        return SubmissionStatus.COMPILATION_ERROR
+        
+    # Check if there are no test cases
+    if total_tests == 0:
+        return SubmissionStatus.RUNTIME_ERROR
+        
+    # Check if all tests passed
+    if passed_tests == total_tests:
+        return SubmissionStatus.ACCEPTED
+        
+    # Default case: some tests failed
+    return SubmissionStatus.WRONG_ANSWER
+
+def determine_test_case_status(result: Dict[str, Any]) -> SubmissionStatus:
+    """
+    Determines the status for an individual test case result.
+    
+    Args:
+        result: Dictionary containing test case result
+        
+    Returns:
+        SubmissionStatus enum value
+    """
+    output = result.get("output", "")
+    passed = result.get("passed", False)
+    
+    if isinstance(output, str):
+        if "Error during execution" in output:
+            return SubmissionStatus.RUNTIME_ERROR
+        elif "Error in code" in output:
+            return SubmissionStatus.COMPILATION_ERROR
+            
+    if passed:
+        return SubmissionStatus.ACCEPTED
+        
+    return SubmissionStatus.WRONG_ANSWER
+
+def get_first_failing_test(test_results: List[Dict[str, Any]]) -> Optional[Dict[str, Any]]:
+    """
+    Returns the first failing test case, or None if all passed.
+    """
+    for result in test_results:
+        if not result.get("passed", False):
+            return result
+    return None
+
+
+
+def store_submission_results(
+    db: Session, 
+    problem_id: int, 
+    source_code: str, 
+    test_results: List[Dict[str, Any]], 
+    status: SubmissionStatus
+) -> Submission:
+    """
+    Stores submission results in the database.
+    
+    Args:
+        db: Database session
+        problem_id: ID of the problem
+        source_code: Source code submitted by the user
+        test_results: List of test case results
+        status: Overall submission status
+        
+    Returns:
+        The created Submission object
+    """
+    # Calculate statistics
+    total_tests = len(test_results)
+    passed_tests = sum(1 for result in test_results if result.get("passed", False))
+    
+    # Create submission record
+    submission = Submission(
+        problem_id=problem_id,
+        source_code=source_code,
+        status=status,
+        total_tests=total_tests,
+        passed_tests=passed_tests
+    )
+    
+    db.add(submission)
+    db.flush()  # Flush to get the submission ID
+    
+    # Create test result records for each test case
+    for result in test_results:
+        test_case_id = result.get("test_case_id")
+        passed = result.get("passed", False)
+        
+        # Determine status for this specific test result
+        test_status = determine_test_case_status(result)
+        
+        # Extract error message if applicable
+        error_message = None
+        output = result.get("output", "")
+        if isinstance(output, str) and ("Error" in output or "error" in output):
+            error_message = output
+        
+        # Create test result record
+        test_result = SubmissionTestResult(
+            submission_id=submission.id,
+            test_case_id=test_case_id,
+            passed=passed,
+            status=test_status,
+            input_data=result.get("input"),
+            expected_output=result.get("expected_output"),
+            actual_output=result.get("output"),
+            error_message=error_message
+        )
+        
+        db.add(test_result)
+    
+    # Commit all changes to the database
+    db.commit()
+    
+    return submission

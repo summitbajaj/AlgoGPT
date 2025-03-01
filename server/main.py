@@ -4,7 +4,7 @@ from sqlalchemy.orm import Session
 import requests
 from database.database import SessionLocal
 from database.models import Problem, TestCase
-from helpers import get_all_test_cases, get_function_name, get_benchmark_test_cases, get_problem_context_for_ai
+from helpers import get_all_test_cases, get_function_name, get_benchmark_test_cases, get_problem_context_for_ai, get_all_test_cases, get_function_name, determine_submission_status, get_first_failing_test, store_submission_results
 from dotenv import load_dotenv
 import os
 from ai_model import graph
@@ -124,7 +124,10 @@ def fetch_test_cases(problem_id: int, db: Session = Depends(get_db)):
 # -------------------------------
 @app.post("/submit-code", response_model=SubmitCodeResponse)
 def execute_code(request: SubmitCodeRequest, db: Session = Depends(get_db)):
-    """Fetches test cases, forwards request to code runner, and returns results."""
+    """
+    Fetches test cases, forwards request to code runner, and returns results.
+    Stores submission results in the database.
+    """
 
     # Fetch test cases from the database
     test_cases = get_all_test_cases(db, request.problem_id)
@@ -148,7 +151,37 @@ def execute_code(request: SubmitCodeRequest, db: Session = Depends(get_db)):
     if response.status_code != 200:
         raise HTTPException(status_code=500, detail="Submit Code execution service failed")
 
-    return response.json()
+    # Process response data
+    response_data = response.json()
+    test_results = response_data.get("test_results", [])
+    
+    # Determine overall submission status using helper function
+    status = determine_submission_status(test_results)
+    
+    # Store submission results in the database
+    submission = store_submission_results(
+        db=db,
+        problem_id=request.problem_id,
+        source_code=request.source_code,
+        test_results=test_results,
+        status=status
+    )
+
+    # Calculate test statistics
+    total_tests = len(test_results)
+    passed_tests = sum(1 for result in test_results if result.get("passed", False))
+
+    # Find first failing test case (if any)
+    failing_test = get_first_failing_test(test_results)
+    
+    # Return response with appropriate information
+    return SubmitCodeResponse(
+        submission_id=str(submission.id),
+        status=status.value,
+        passed_tests=passed_tests,
+        total_tests=total_tests,
+        failing_test=failing_test
+    )
 
 # -------------------------------
 # 5️⃣ Execute complexity analysis (Forwards to Flask Code Runner)

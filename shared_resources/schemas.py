@@ -1,5 +1,5 @@
 from pydantic import BaseModel
-from typing import List, Dict, Any
+from typing import List, Dict, Any, Optional
 
 # generic schemas
 class RunCodeTestCase(BaseModel):
@@ -24,7 +24,12 @@ class SubmitCodeExecutionPayload(SubmitCodeRequest):
     function_name: str
     test_cases: List[SubmitCodeTestCase] 
 class SubmitCodeResponse(BaseModel):
-    test_results: List[SubmitCodeTestResult]
+    submission_id: str
+    status: str
+    passed_tests: int
+    total_tests: int
+    # Only present if a test failed
+    failing_test: Optional[SubmitCodeTestResult] = None  
 
 # @app.post("/analyze_complexity) endpoint
 class ComplexityAnalysisRequest(BaseModel):
