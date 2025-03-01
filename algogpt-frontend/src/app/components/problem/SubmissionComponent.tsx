@@ -5,11 +5,14 @@ import { SubmitCodeResponse, SubmitCodeTestCaseResult } from "@/app/utils/api/ty
 import { Prism as SyntaxHighlighter } from 'react-syntax-highlighter';
 import { vs } from 'react-syntax-highlighter/dist/esm/styles/prism';
 import type { CSSProperties } from 'react';
+import { BeakerIcon } from 'lucide-react';
 
-////////////////////////////////////////////////////////////////////////////////
-// TestCaseView: displays a single test case input, output, and expected output
-////////////////////////////////////////////////////////////////////////////////
-const TestCaseView: React.FC<{ testCase: SubmitCodeTestCaseResult }> = ({ testCase }) => {
+interface TestCaseViewProps {
+  testCase: SubmitCodeTestCaseResult; 
+  onUseTestCase?: (testCase: SubmitCodeTestCaseResult) => void;
+}
+
+const TestCaseView: React.FC<TestCaseViewProps> = ({ testCase, onUseTestCase }) => {
   return (
     <div className="space-y-4">
       {/* Input Section */}
@@ -49,6 +52,20 @@ const TestCaseView: React.FC<{ testCase: SubmitCodeTestCaseResult }> = ({ testCa
           the expected output <span className="font-mono text-green-600 bg-green-50 px-1 rounded border border-green-100">{JSON.stringify(testCase.expected_output)}</span>.
         </p>
       </div>
+
+      {/* Button to use this test case */}
+      {onUseTestCase && (
+        <div className="mt-2">
+          <Button 
+            variant="outline" 
+            className="border-blue-300 text-blue-600 hover:bg-blue-50"
+            onClick={() => onUseTestCase(testCase)}
+          >
+            <BeakerIcon className="w-4 h-4 mr-1" />
+            Use Testcase
+          </Button>
+        </div>
+      )}
     </div>
   );
 };
@@ -106,14 +123,12 @@ const SubmissionCodeView: React.FC<{ code: string }> = ({ code }) => {
   );
 };
 
-////////////////////////////////////////////////////////////////////////////////
-// SubmissionDetails: shows status header, failing test case (if any), and code
-////////////////////////////////////////////////////////////////////////////////
 interface SubmissionDetailsProps {
   submission: SubmitCodeResponse | null;
+  onUseTestCase?: (testCase: SubmitCodeTestCaseResult) => void;
 }
 
-export const SubmissionDetails: React.FC<SubmissionDetailsProps> = ({ submission }) => {
+export const SubmissionDetails: React.FC<SubmissionDetailsProps> = ({ submission, onUseTestCase }) => {
   if (!submission) {
     return (
       <div className="text-center text-gray-400 italic p-4">
@@ -142,7 +157,10 @@ export const SubmissionDetails: React.FC<SubmissionDetailsProps> = ({ submission
       {/* Failing Test Case (if any) */}
       {submission.failing_test && (
         <Card className="p-4 border border-gray-200">
-          <TestCaseView testCase={submission.failing_test} />
+          <TestCaseView 
+            testCase={submission.failing_test} 
+            onUseTestCase={onUseTestCase}
+          />
         </Card>
       )}
 
@@ -167,12 +185,14 @@ interface SubmissionsTabProps {
   submissions: SubmitCodeResponse[];
   selectedSubmission: SubmitCodeResponse | null;
   onSelectSubmission?: (submission: SubmitCodeResponse) => void;
+  onUseTestCase?: (testCase: SubmitCodeTestCaseResult) => void; // New prop
 }
 
 export const SubmissionsTab: React.FC<SubmissionsTabProps> = ({ 
   submissions,
   selectedSubmission,
-  onSelectSubmission
+  onSelectSubmission,
+  onUseTestCase
 }) => {
 
   // Simply call the parent callback if a user clicks a submission
@@ -218,7 +238,10 @@ export const SubmissionsTab: React.FC<SubmissionsTabProps> = ({
           </div>
           
           {/* Selected submission details */}
-          <SubmissionDetails submission={selectedSubmission} />
+          <SubmissionDetails 
+            submission={selectedSubmission} 
+            onUseTestCase={onUseTestCase}
+          />
         </div>
       )}
     </div>

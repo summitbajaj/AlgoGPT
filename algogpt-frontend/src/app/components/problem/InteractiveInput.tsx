@@ -45,16 +45,15 @@ const InputEditor: React.FC<InteractiveInputProps> = ({ inputData, onChange }) =
   };
 
   return (
-    <div className="space-y-2">
+    <div className="space-y-3">
       {Object.entries(localInputs).map(([key, value]) => (
-        <div key={key} className="space-y-1">
-          <div className="text-sm text-gray-600">{key} = </div>
+        <div key={key} className="font-mono">
+          <div className="text-blue-600 mb-2">{key} = </div>
           <input
             type="text"
             value={value}
             onChange={(e) => handleInputChange(key, e.target.value)}
-            className="editor-textarea h-9 min-h-0"
-            style={{ resize: "none", minHeight: "auto" }}
+            className="w-full p-4 bg-white border border-gray-200 rounded focus:outline-none focus:ring-2 focus:ring-blue-500 font-mono"
             spellCheck={false}
           />
         </div>

@@ -8,7 +8,7 @@ import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { Problem } from "@/app/utils/api/types";
 import { ProblemDescription } from "@/app/components/problem/ProblemDescription";
 import { CodeSection } from "@/app/components/problem/CodeSection";
-import { PostRunCodeResponse, RunCodeTestCaseResult, SubmitCodeResponse } from "@/app/utils/api/types";
+import { PostRunCodeResponse, RunCodeTestCaseResult, SubmitCodeResponse, SubmitCodeTestCaseResult } from "@/app/utils/api/types";
 import { InputData } from "@/app/components/problem/InteractiveInput";
 import { parseInputValue } from "@/app/utils/utils";
 import { AIChat } from "@/app/components/problem/AIChat";
@@ -43,7 +43,9 @@ export default function ProblemPage() {
     });
 
     // Send test cases to CodeSection which will forward to PythonEditor
-    setTestCaseInputs(transformedTestCases)
+    setTestCaseInputs(transformedTestCases);
+    // Set running state
+    setIsRunning(true);
   };
 
   const handleSubmit = () => {
@@ -53,9 +55,8 @@ export default function ProblemPage() {
 
   // Updated function to handle submission completion
   const handleSubmitComplete = (result: SubmitCodeResponse) => {
-
     // Add the submission to our state
-    setSubmissions([result]);
+    setSubmissions((prev) => [result, ...prev]);
     setSelectedSubmission(result);
     
     // Switch to submissions tab
@@ -93,7 +94,7 @@ export default function ProblemPage() {
     if (!problem) return;
   
     // Create an output array for each test case based on its test_case_id.
-    const newOutput = problem.examples.map((ex, idx) => {
+    const newOutput = testCaseInputs.map((_, idx) => {
       // Find the corresponding test result and cast it to the proper type
       const testCaseResult = result.test_results.find(
         (tr) => tr.test_case_id === idx
@@ -106,13 +107,87 @@ export default function ProblemPage() {
     setOutput(newOutput);
   };
   
-  // new callback for updating test case inputs
+  // callback for updating test case inputs
   const handleTestCaseInputChange = (index: number, newData: InputData) => {
     setTestCaseInputs((prev) => {
       const updated = [...prev];
       updated[index] = newData;
       return updated;
     });
+  };
+
+  // Add new function to handle adding a test case
+  const handleAddTestCase = () => {
+    // Create a new empty test case with the same structure as existing ones
+    const firstTestCase = testCaseInputs[0];
+    
+    // Create a new test case with the same keys but empty values
+    const newTestCase: InputData = {};
+    Object.keys(firstTestCase).forEach(key => {
+      // Initialize with the same type but "empty" values
+      const existingValue = firstTestCase[key];
+      if (Array.isArray(existingValue)) {
+        newTestCase[key] = [];
+      } else if (typeof existingValue === 'number') {
+        newTestCase[key] = 0;
+      } else if (typeof existingValue === 'string') {
+        newTestCase[key] = "";
+      } else if (typeof existingValue === 'boolean') {
+        newTestCase[key] = false;
+      } else if (existingValue === null) {
+        newTestCase[key] = null;
+      } else if (typeof existingValue === 'object') {
+        newTestCase[key] = {};
+      }
+    });
+    
+    // Add the new test case
+    setTestCaseInputs(prev => [...prev, newTestCase]);
+    
+    // Update the output array to match
+    setOutput(prev => [...prev, ""]);
+    
+    // Switch to the new test case
+    setActiveTestCase(testCaseInputs.length);
+  };
+
+  // Add new function to handle removing a test case
+  const handleRemoveTestCase = (index: number) => {
+    // Don't allow removing all test cases
+    if (testCaseInputs.length <= 1) return;
+    
+    // Remove the test case at the specified index
+    setTestCaseInputs(prev => prev.filter((_, i) => i !== index));
+    
+    // Also remove the corresponding output
+    setOutput(prev => prev.filter((_, i) => i !== index));
+    
+    // If we're removing the active test case, switch to the previous one
+    if (activeTestCase >= index) {
+      setActiveTestCase(Math.max(0, activeTestCase - 1));
+    }
+  };
+
+  // Add new function to use a test case from a submission
+  const handleUseTestCase = (testCase: SubmitCodeTestCaseResult) => {
+    // Create a new test case from the submission's test case
+    const newTestCase: InputData = { ...testCase.input };
+    
+    // Add the new test case
+    setTestCaseInputs(prev => {
+      const updatedTestCases = [...prev, newTestCase];
+      // Switch to the new test case (note we need to use the new length)
+      setTimeout(() => {
+        setActiveTestCase(updatedTestCases.length - 1);
+      }, 0);
+      return updatedTestCases;
+    });
+    
+    // Add an empty output for this test case
+    setOutput(prev => [...prev, ""]);
+    
+    // Switch to description tab
+    setActiveTab("description");
   };
 
   if (isLoading) {
@@ -150,6 +225,7 @@ export default function ProblemPage() {
                       submissions={submissions} 
                       selectedSubmission={selectedSubmission}
                       onSelectSubmission={setSelectedSubmission}
+                      onUseTestCase={handleUseTestCase} // Add the new prop
                     />
                   </TabsContent>
 
@@ -177,6 +253,8 @@ export default function ProblemPage() {
               onExecutionComplete={handleRunCodeExecution}
               onTestCaseInputChange={handleTestCaseInputChange}
               testCaseInputs={testCaseInputs}
+              onAddTestCase={handleAddTestCase} 
+              onRemoveTestCase={handleRemoveTestCase}
             />
           </Panel>
         </PanelGroup>
