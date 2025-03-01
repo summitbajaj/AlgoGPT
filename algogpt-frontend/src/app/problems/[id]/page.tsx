@@ -8,11 +8,12 @@ import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { Problem } from "@/app/utils/api/types";
 import { ProblemDescription } from "@/app/components/problem/ProblemDescription";
 import { CodeSection } from "@/app/components/problem/CodeSection";
-import { PostRunCodeResponse, RunCodeTestCaseResult } from "@/app/utils/api/types";
+import { PostRunCodeResponse, RunCodeTestCaseResult, SubmitCodeResponse } from "@/app/utils/api/types";
 import { InputData } from "@/app/components/problem/InteractiveInput";
 import { parseInputValue } from "@/app/utils/utils";
 import { AIChat } from "@/app/components/problem/AIChat";
 import { WebSocketProvider } from "@/app/context/WebSocketContext";
+import { SubmissionsTab } from "@/app/components/problem/SubmissionComponent";
 
 export default function ProblemPage() {
   const params = useParams<{ id: string }>();
@@ -23,6 +24,10 @@ export default function ProblemPage() {
   const [activeTestCase, setActiveTestCase] = useState(0);
   const [output, setOutput] = useState<string[]>([]);
   const [testCaseInputs, setTestCaseInputs] = useState<InputData[]>([]);
+  
+  // Add state for submissions
+  const [submissions, setSubmissions] = useState<SubmitCodeResponse[]>([]);
+  const [selectedSubmission, setSelectedSubmission] = useState<SubmitCodeResponse | null>(null);
   
   // Replace with your actual user authentication
   const dummyUserId = "user123";
@@ -44,6 +49,17 @@ export default function ProblemPage() {
   const handleSubmit = () => {
     console.log("Submitting code...");
     // The actual submission is handled by the PythonEditor component
+  };
+
+  // Updated function to handle submission completion
+  const handleSubmitComplete = (result: SubmitCodeResponse) => {
+
+    // Add the submission to our state
+    setSubmissions([result]);
+    setSelectedSubmission(result);
+    
+    // Switch to submissions tab
+    setActiveTab("submissions");
   };
 
   useEffect(() => {
@@ -121,7 +137,7 @@ export default function ProblemPage() {
                 <Tabs value={activeTab} onValueChange={setActiveTab}>
                   <TabsList className="mb-0">
                     <TabsTrigger value="description">Description</TabsTrigger>
-                    <TabsTrigger value="solution">Solution</TabsTrigger>
+                    <TabsTrigger value="submissions">Submissions</TabsTrigger>
                     <TabsTrigger value="ai-chat">AI Chat</TabsTrigger>
                   </TabsList>
 
@@ -129,10 +145,12 @@ export default function ProblemPage() {
                     <ProblemDescription problem={problem} />
                   </TabsContent>
 
-                  <TabsContent value="solution">
-                    <div className="text-center text-gray-400 italic">
-                      Solution content here
-                    </div>
+                  <TabsContent value="submissions">
+                    <SubmissionsTab 
+                      submissions={submissions} 
+                      selectedSubmission={selectedSubmission}
+                      onSelectSubmission={setSelectedSubmission}
+                    />
                   </TabsContent>
 
                   <TabsContent value="ai-chat" className="h-[calc(100vh-220px)]">
@@ -154,6 +172,7 @@ export default function ProblemPage() {
               output={output}
               onRun={handleRun}
               onSubmit={handleSubmit}
+              onSubmitComplete={handleSubmitComplete} 
               onTestCaseChange={setActiveTestCase}
               onExecutionComplete={handleRunCodeExecution}
               onTestCaseInputChange={handleTestCaseInputChange}

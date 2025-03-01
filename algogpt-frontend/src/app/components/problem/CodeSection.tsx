@@ -5,7 +5,7 @@ import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { PlayIcon, CheckIcon, Maximize2Icon } from "lucide-react";
 import { PythonEditorComponent } from "@/app/components/PythonEditor";
 import { Problem } from "@/app/utils/api/types";
-import { PostRunCodeResponse } from "@/app/utils/api/types";
+import { PostRunCodeResponse, SubmitCodeResponse } from "@/app/utils/api/types";
 import { PanelGroup, Panel, PanelResizeHandle } from "react-resizable-panels";
 import InteractiveInput, { InputData } from "./InteractiveInput";
 import { parseInputValue } from "@/app/utils/utils";
@@ -19,6 +19,7 @@ interface CodeSectionProps {
   onSubmit: () => void;
   onTestCaseChange: (index: number) => void;
   onExecutionComplete: (result: PostRunCodeResponse) => void;
+  onSubmitComplete?: (result: SubmitCodeResponse) => void; // Add this prop
   onTestCaseInputChange?: (index: number, newData: InputData) => void;
   testCaseInputs: InputData[];
 }
@@ -32,6 +33,7 @@ export function CodeSection({
   onSubmit,
   onTestCaseChange,
   onExecutionComplete,
+  onSubmitComplete, // Add this to the destructuring
   onTestCaseInputChange,
   testCaseInputs,
 }: CodeSectionProps) {
@@ -93,6 +95,7 @@ export function CodeSection({
                   key = {problem.problem_id}
                   initialCode={problem.starter_code}
                   onRunCodeComplete={onExecutionComplete}
+                  onSubmitCodeComplete={onSubmitComplete} // Pass the callback to PythonEditor
                   problemId={problem.problem_id}
                   testCaseInputs={testCaseInputs.map((tc, index) => {
                     // Transform each key in the test case input
