@@ -256,6 +256,8 @@ export interface components {
             passed_tests: number;
             /** Total Tests */
             total_tests: number;
+            /** User Code */
+            user_code: string;
             failing_test?: components["schemas"]["SubmitCodeTestResult"] | null;
         };
         /** SubmitCodeTestResult */
