@@ -1,10 +1,13 @@
 // define the types of the API request and response
 import { components } from "../api/api_types";
 
-export type CodeExecutionRequest = components["schemas"]["CodeExecutionRequest"];
-export type CodeExecutionResponse = components["schemas"]["CodeExecutionResponse"];
 export type Problem = components["schemas"]["GetProblemResponse"];
 export type ExampleTestCaseModel = components["schemas"]["ExampleTestCaseModel"];
+
+// for submit-code endpoint
+export type SubmitCodeRequest = components["schemas"]["SubmitCodeRequest"];
+export type SubmitCodeResponse = components["schemas"]["SubmitCodeResponse"];
+export type SubmitCodeTestCaseResult = components["schemas"]["SubmitCodeTestResult"];
 
 // for run-code endpoint
 export type PostRunCodeRequest = components["schemas"]["PostRunCodeRequest"];

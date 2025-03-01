@@ -4,7 +4,7 @@ import {
   registerFileSystemOverlay,
   RegisteredMemoryFile,
 } from '@codingame/monaco-vscode-files-service-override';
-import React, { StrictMode, useState, useEffect, useRef } from 'react';
+import React, { StrictMode, useState, useEffect, useRef, useCallback } from 'react';
 import ReactDOM from 'react-dom/client';
 import { MonacoEditorReactComp } from '@typefox/monaco-editor-react';
 import {
@@ -13,14 +13,15 @@ import {
   WrapperConfig,
 } from 'monaco-editor-wrapper';
 import { createUserConfig } from '../config/config';
-import { runCode } from '../utils/api/api';
+import { runCode, submitCode } from '../utils/api/api';
 import * as monaco from 'monaco-editor';
-import { PostRunCodeRequest, PostRunCodeResponse, RunCodeTestCase } from '../utils/api/types';
+import { PostRunCodeRequest, PostRunCodeResponse, RunCodeTestCase, SubmitCodeRequest, SubmitCodeResponse } from '../utils/api/types';
 import { useWebSocket } from '../context/WebSocketContext';
 import { debounce } from 'lodash'; 
 
 interface PythonEditorProps {
   onRunCodeComplete?: (result: PostRunCodeResponse) => void;
+  onSubmitCodeComplete?: (result: SubmitCodeResponse) => void;
   initialCode?: string;
   problemId: number;
   testCaseInputs: RunCodeTestCase[];
@@ -28,6 +29,7 @@ interface PythonEditorProps {
 
 export const PythonEditorComponent: React.FC<PythonEditorProps> = ({
   onRunCodeComplete: onExecutionComplete,
+  onSubmitCodeComplete,
   initialCode = "",
   problemId,
   testCaseInputs
@@ -39,6 +41,10 @@ export const PythonEditorComponent: React.FC<PythonEditorProps> = ({
   const editorRootRef = useRef<ReactDOM.Root | null>(null);
   const wrapperRef = useRef<MonacoEditorLanguageClientWrapper | null>(null);
   const { sendCodeUpdate } = useWebSocket();
+  
+  // Create refs outside of effects for the submit button and its handler
+  const submitButtonRef = useRef<HTMLElement | null>(null);
+  const runButtonRef = useRef<HTMLElement | null>(null);
 
   // Create a debounced version of the sendCodeUpdate function
   // This will only send code updates after the user stops typing for 1 second
@@ -70,35 +76,70 @@ export const PythonEditorComponent: React.FC<PythonEditorProps> = ({
     };
   }, [debouncedSendCodeUpdate]);
 
+  // Define handlers for run and submit outside of effects
+  const handleRunCode = useCallback(async () => {
+    try {
+      const request: PostRunCodeRequest = {
+        source_code: codeRef.current,
+        problem_id: problemId,
+        test_cases: testCaseInputs,
+      };
+      const response = await runCode(request);
+      onExecutionComplete?.(response);
+    } catch (error) {
+      console.error('Failed to run code:', error);
+      
+      // Provide a default CodeExecutionResponse on error
+      onExecutionComplete?.({
+        test_results: [],
+      });
+    }
+  }, [onExecutionComplete, problemId, testCaseInputs]);
+
+  const handleSubmitCode = useCallback(async () => {
+    try {
+      const request: SubmitCodeRequest = {
+        source_code: codeRef.current,
+        problem_id: problemId,
+      };
+      const response = await submitCode(request);
+      onSubmitCodeComplete?.(response);
+    } catch (error) {
+      console.error('Failed to submit code:', error);
+    }
+  }, [onSubmitCodeComplete, problemId]);
+
   // Handle run button click
   useEffect(() => {
-    const handleRunCode = async () => {
-      try {
-        const request: PostRunCodeRequest = {
-          source_code: codeRef.current,
-          problem_id: problemId,
-          test_cases: testCaseInputs,
-        };
-        const response = await runCode(request);
-        onExecutionComplete?.(response);
-      } catch (error) {
-        console.error('Failed to run code:', error);
-        
-        // Provide a default CodeExecutionResponse on error
-        onExecutionComplete?.({
-          test_results: [],
-        });
-      }
-    };
-  
     const runButton = document.querySelector('#button-run');
-    runButton?.addEventListener('click', handleRunCode);
+    runButtonRef.current = runButton as HTMLElement;
+    
+    if (runButtonRef.current) {
+      runButtonRef.current.addEventListener('click', handleRunCode);
+    }
   
     return () => {
-      runButton?.removeEventListener('click', handleRunCode);
+      if (runButtonRef.current) {
+        runButtonRef.current.removeEventListener('click', handleRunCode);
+      }
     };
-  }, [onExecutionComplete, problemId, testCaseInputs]);
+  }, [handleRunCode]);
   
+  // Handle submit button click
+  useEffect(() => {
+    const submitButton = document.querySelector('#button-submit');
+    submitButtonRef.current = submitButton as HTMLElement;
+    
+    if (submitButtonRef.current) {
+      submitButtonRef.current.addEventListener('click', handleSubmitCode);
+    }
+  
+    return () => {
+      if (submitButtonRef.current) {
+        submitButtonRef.current.removeEventListener('click', handleSubmitCode);
+      }
+    };
+  }, [handleSubmitCode]);
 
   // Force editor reinitialization when problemId changes
   useEffect(() => {

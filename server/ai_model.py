@@ -11,13 +11,13 @@ from langchain_openai import AzureChatOpenAI
 from datetime import datetime
 
 # Load environment variables from .env file
-load_dotenv()
+load_dotenv('.env')
 
 # Set environment variables for Azure OpenAI
 AZURE_OPENAI_DEPLOYMENT = os.getenv("AZURE_OPENAI_DEPLOYMENT")
 AZURE_OPENAI_VERSION = os.getenv("AZURE_OPENAI_VERSION")
-AZURE_OPENAI_KEY = os.getenv("AZURE_OPENAI_API_KEY")
-AZURE_OPENAI_ENDPOINT = os.getenv("AZURE_OPENAI_API_ENDPOINT")
+AZURE_OPENAI_KEY = os.getenv("AZURE_OPENAI_KEY")
+AZURE_OPENAI_ENDPOINT = os.getenv("AZURE_OPENAI_ENDPOINT")
 
 # Initialize memory checkpointing
 memory = MemorySaver()

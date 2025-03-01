@@ -1,18 +1,38 @@
 from pydantic import BaseModel
 from typing import List, Dict, Any, Optional
 
+# generic schemas
+class RunCodeTestCase(BaseModel):
+    test_case_id: int
+    input: Dict[str, Any] 
+class SubmitCodeTestCase(RunCodeTestCase):
+    expected_output: Any
+    order_sensitive: bool
 class TestCaseSchema(BaseModel):
     input_data: str
     expected_output: str
+class SubmitCodeTestResult(RunCodeTestCase):
+    output: Any
+    passed: bool
+    expected_output: Any
 
-class CodeExecutionRequest(BaseModel):
-    code: str
+# @app.post("/submit-code") endpoint
+class SubmitCodeRequest(BaseModel):
+    source_code: str
     problem_id: int
+class SubmitCodeExecutionPayload(SubmitCodeRequest):
+    function_name: str
+    test_cases: List[SubmitCodeTestCase] 
+class SubmitCodeResponse(BaseModel):
+    submission_id: str
+    status: str
+    passed_tests: int
+    total_tests: int
+    user_code: str
+    # Only present if a test failed
+    failing_test: Optional[SubmitCodeTestResult] = None  
 
-class CodeExecutionResponse(BaseModel):
-    test_results: List[Dict[str, Any]]
-    execution_time: float
-
+# @app.post("/analyze_complexity) endpoint
 class ComplexityAnalysisRequest(BaseModel):
     code: str
     problem_id: int
@@ -35,9 +55,7 @@ class GetProblemResponse(BaseModel):
     examples: List[ExampleTestCaseModel]
     starter_code: str
 
-class RunCodeTestCase(BaseModel):
-    test_case_id: int
-    input: Dict[str, Any] 
+# @app.post("/run-code") endpoint
 
 class RunCodeTestCaseResult(RunCodeTestCase):
     output: Any
@@ -52,6 +70,8 @@ class PostRunCodeResponse(BaseModel):
     
 class RunCodeExecutionPayload(PostRunCodeRequest):
     function_name: str
+
+# @app.websocket("/ws/chat/{user_id}/{problem_id}") endpoint
 class ChatRequest(BaseModel):
     user_id: str
     problem_id: int

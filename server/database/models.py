@@ -1,6 +1,8 @@
-from sqlalchemy import Column, Integer, String, Text, Enum, ForeignKey, Table
+from sqlalchemy import Column, Integer, String, Text, Enum, ForeignKey, Table, DateTime
+from datetime import datetime
 from sqlalchemy.orm import relationship
-from sqlalchemy.dialects.postgresql import JSONB, BOOLEAN
+from sqlalchemy.dialects.postgresql import JSONB, BOOLEAN, UUID
+import uuid
 from . import Base
 import enum
 
@@ -88,6 +90,7 @@ class Example(Base):
     # NOTE: no 'unique=True' here, so multiple Example rows can share a single test_case_id
     test_case = relationship("TestCase", back_populates="examples")
 
+# ----- 6) SOLUTION MODEL --------------------------------------------------
 class Solution(Base):
     __tablename__ = "solutions"
 
@@ -100,3 +103,61 @@ class Solution(Base):
 
     # Relationship back to Problem
     problem = relationship("Problem", back_populates="solutions")
+
+# ----- 7) SUBMISSION MODEL --------------------------------------------------
+class SubmissionStatus(str, enum.Enum):
+    ACCEPTED = "Accepted"
+    WRONG_ANSWER = "Wrong Answer"
+    RUNTIME_ERROR = "Runtime Error"
+    TIME_LIMIT_EXCEEDED = "Time Limit Exceeded"
+    COMPILATION_ERROR = "Compilation Error"
+
+class Submission(Base):
+    __tablename__ = "submissions"
+
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4, index=True)
+
+    problem_id = Column(Integer, ForeignKey("problems.id"), index=True, nullable=False)
+    source_code = Column(Text, nullable=False)
+    submission_time = Column(DateTime, default=datetime.utcnow)
+
+    # Overall submission result
+    status = Column(Enum(SubmissionStatus), nullable=False)  
+    total_tests = Column(Integer, default=0)
+    passed_tests = Column(Integer, default=0)
+
+    # Relationship to problem (optional, if you need it)
+    problem = relationship("Problem")
+
+    # One-to-many relationship to SubmissionTestResult
+    test_results = relationship(
+        "SubmissionTestResult",
+        back_populates="submission",
+        cascade="all, delete-orphan"
+    )
+
+
+# ----- 8) SUBMISSION TEST RESULT MODEL -----------------------------------
+class SubmissionTestResult(Base):
+    __tablename__ = "submission_test_results"
+
+    id = Column(Integer, primary_key=True, index=True)
+    
+    submission_id = Column(UUID(as_uuid=True), ForeignKey("submissions.id"), index=True, nullable=False)
+    test_case_id = Column(Integer, ForeignKey("test_cases.id"), nullable=False)
+    
+    # Simple pass/fail or more detailed status
+    passed = Column(BOOLEAN, default=False)
+    status = Column(Enum(SubmissionStatus), nullable=False)
+
+    # For reference and debugging
+    input_data = Column(JSONB, nullable=True)
+    expected_output = Column(JSONB, nullable=True)
+    actual_output = Column(JSONB, nullable=True)
+    error_message = Column(Text, nullable=True)
+
+    # Relationship back to Submission
+    submission = relationship("Submission", back_populates="test_results")
+
+    # Relationship to the TestCase (handy if you need quick access)
+    test_case = relationship("TestCase")

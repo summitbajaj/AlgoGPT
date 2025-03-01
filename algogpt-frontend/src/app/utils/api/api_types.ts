@@ -55,7 +55,7 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/execute": {
+    "/submit-code": {
         parameters: {
             query?: never;
             header?: never;
@@ -67,8 +67,9 @@ export interface paths {
         /**
          * Execute Code
          * @description Fetches test cases, forwards request to code runner, and returns results.
+         *     Stores submission results in the database.
          */
-        post: operations["execute_code_execute_post"];
+        post: operations["execute_code_submit_code_post"];
         delete?: never;
         options?: never;
         head?: never;
@@ -126,23 +127,38 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/chat": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Chat Ai
+         * @description AI Chat endpoint using LangGraph for structured chat memory with problem context.
+         */
+        post: operations["chat_ai_chat_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
 }
 export type webhooks = Record<string, never>;
 export interface components {
     schemas: {
-        /** CodeExecutionRequest */
-        CodeExecutionRequest: {
-            /** Code */
-            code: string;
+        /** ChatRequest */
+        ChatRequest: {
+            /** User Id */
+            user_id: string;
             /** Problem Id */
             problem_id: number;
-        };
-        /** CodeExecutionResponse */
-        CodeExecutionResponse: {
-            /** Test Results */
-            test_results: Record<string, never>[];
-            /** Execution Time */
-            execution_time: number;
+            /** User Message */
+            user_message: string;
         };
         /** ComplexityAnalysisRequest */
         ComplexityAnalysisRequest: {
@@ -222,6 +238,40 @@ export interface components {
             input: Record<string, never>;
             /** Output */
             output: unknown;
+        };
+        /** SubmitCodeRequest */
+        SubmitCodeRequest: {
+            /** Source Code */
+            source_code: string;
+            /** Problem Id */
+            problem_id: number;
+        };
+        /** SubmitCodeResponse */
+        SubmitCodeResponse: {
+            /** Submission Id */
+            submission_id: string;
+            /** Status */
+            status: string;
+            /** Passed Tests */
+            passed_tests: number;
+            /** Total Tests */
+            total_tests: number;
+            /** User Code */
+            user_code: string;
+            failing_test?: components["schemas"]["SubmitCodeTestResult"] | null;
+        };
+        /** SubmitCodeTestResult */
+        SubmitCodeTestResult: {
+            /** Test Case Id */
+            test_case_id: number;
+            /** Input */
+            input: Record<string, never>;
+            /** Output */
+            output: unknown;
+            /** Passed */
+            passed: boolean;
+            /** Expected Output */
+            expected_output: unknown;
         };
         /** ValidationError */
         ValidationError: {
@@ -323,7 +373,7 @@ export interface operations {
             };
         };
     };
-    execute_code_execute_post: {
+    execute_code_submit_code_post: {
         parameters: {
             query?: never;
             header?: never;
@@ -332,7 +382,7 @@ export interface operations {
         };
         requestBody: {
             content: {
-                "application/json": components["schemas"]["CodeExecutionRequest"];
+                "application/json": components["schemas"]["SubmitCodeRequest"];
             };
         };
         responses: {
@@ -342,7 +392,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["CodeExecutionResponse"];
+                    "application/json": components["schemas"]["SubmitCodeResponse"];
                 };
             };
             /** @description Validation Error */
@@ -409,6 +459,39 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["PostRunCodeResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    chat_ai_chat_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ChatRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
                 };
             };
             /** @description Validation Error */
