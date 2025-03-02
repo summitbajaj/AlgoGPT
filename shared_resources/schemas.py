@@ -83,7 +83,6 @@ class AIComplexityInsights(BaseModel):
     ai_time_complexity: str
     space_complexity: str
     edge_cases: Optional[str] = None
-    optimization_suggestions: Optional[str] = None
     explanation: Optional[str] = None
 # Payload for forwarding to code-runner service
 class ComplexityAnalysisPayload(BaseModel):
@@ -96,9 +95,5 @@ class ComplexityAnalysisResponse(BaseModel):
     submission_id: str
     problem_id: int
     time_complexity: str  # The determined time complexity (e.g., "O(n)", "O(n log n)")
-    space_complexity: Optional[str] = None  # The determined space complexity
-    details: Optional[Dict[str, Any]] = None  # Additional analysis details
-    visualization_data: Optional[Dict[str, Any]] = None  # Data for visualization
-    confidence: float  # How confident we are in the analysis (0.0 to 1.0)
-    message: str  # Human-readable explanation
-    ai_analysis: Optional[AIComplexityInsights] = None  # AI-enhanced insights
+    space_complexity: str  # The determined space complexity
+    message: str  # Human-readable explanation (includes AI insights)

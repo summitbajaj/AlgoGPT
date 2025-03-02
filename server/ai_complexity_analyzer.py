@@ -29,10 +29,10 @@ class AIComplexityAnalyzer:
         )
     
     def analyze_complexity(
-        self, 
-        source_code: str, 
-        function_name: str,
-        current_analysis: Dict[str, Any]
+    self, 
+    source_code: str, 
+    function_name: str,
+    current_analysis: Dict[str, Any]
     ) -> Dict[str, Any]:
         """
         Enhance complexity analysis with AI insights.
@@ -69,8 +69,8 @@ class AIComplexityAnalyzer:
         Provide your analysis in a structured JSON format with these keys:
         - ai_time_complexity: Your assessment of the time complexity
         - space_complexity: Your assessment of the space complexity
-        - edge_cases: Any edge cases where complexity differs
-        - explanation: A short technical explanation of your assessment
+        - edge_cases: Any edge cases where complexity differs (can be a string or a detailed array)
+        - explanation: A detailed technical explanation of your assessment that thoroughly explains the complexity
         """
         
         # Create user prompt with the code
@@ -81,7 +81,7 @@ class AIComplexityAnalyzer:
         {source_code}
         ```
         
-        Analyze this code's complexity in JSON format.
+        Analyze this code's complexity in JSON format as specified.
         """
         
         # Generate AI response
@@ -102,22 +102,54 @@ class AIComplexityAnalyzer:
             
             # Clean up the string and parse JSON
             try:
+                # Remove any triple backticks and language identifiers
                 json_str = re.sub(r'```.*?```', '', json_str, flags=re.DOTALL)
+                
+                # Log the cleaned JSON string for debugging
+                print(f"Attempting to parse JSON: {json_str}")
+                
+                # Parse the JSON
                 ai_insights = json.loads(json_str)
                 
-                # Ensure all fields have the correct types for Pydantic validation
-                # Convert lists to strings if needed
-                for field in ['edge_cases', 'optimization_suggestions', 'explanation']:
-                    if field in ai_insights and isinstance(ai_insights[field], list):
-                        ai_insights[field] = ' '.join(ai_insights[field])
+                # Handle edge_cases field which might be a list, object, or string
+                if "edge_cases" in ai_insights:
+                    edge_cases = ai_insights["edge_cases"]
+                    
+                    # If edge_cases is a list of dictionaries, convert to string
+                    if isinstance(edge_cases, list):
+                        # Try to convert to a readable string format
+                        try:
+                            edge_cases_str = ""
+                            for case in edge_cases:
+                                if isinstance(case, dict):
+                                    case_desc = case.get("case", "")
+                                    case_complexity = case.get("complexity", "")
+                                    if case_desc and case_complexity:
+                                        edge_cases_str += f"{case_desc}: {case_complexity}. "
+                                    else:
+                                        edge_cases_str += str(case) + ". "
+                                else:
+                                    edge_cases_str += str(case) + ". "
+                            ai_insights["edge_cases"] = edge_cases_str.strip()
+                        except:
+                            # If conversion fails, use json.dumps to get a string representation
+                            ai_insights["edge_cases"] = json.dumps(edge_cases)
+                    
+                    # If it's any other non-string type, convert to string
+                    elif not isinstance(edge_cases, str):
+                        ai_insights["edge_cases"] = str(edge_cases)
                         
-            except:
+                # Convert explanation from list to string if needed
+                if "explanation" in ai_insights and isinstance(ai_insights["explanation"], list):
+                    ai_insights["explanation"] = ' '.join(ai_insights["explanation"])
+                    
+            except json.JSONDecodeError as e:
+                print(f"JSON parse error: {e}")
                 # Fallback if JSON parsing fails
                 ai_insights = {
                     "ai_time_complexity": time_complexity,
                     "space_complexity": "Not determined",
                     "edge_cases": "None identified",
-                    "optimization_suggestions": "None provided",
                     "explanation": "Could not parse AI response"
                 }
             
@@ -125,44 +157,33 @@ class AIComplexityAnalyzer:
             enhanced_analysis = current_analysis.copy()
             enhanced_analysis["ai_analysis"] = ai_insights
             
-            # If AI and current analysis disagree on time complexity, note it
-            if ai_insights.get("ai_time_complexity") != time_complexity:
-                enhanced_analysis["complexity_mismatch"] = True
-                enhanced_analysis["ai_time_complexity"] = ai_insights.get("ai_time_complexity")
-            
-            # Add space complexity from AI analysis
-            enhanced_analysis["space_complexity"] = ai_insights.get("space_complexity", "Not determined")
-            
-            # Generate improved message that includes AI insights
-            time_complexity = enhanced_analysis.get("time_complexity")
-            ai_time = ai_insights.get("ai_time_complexity")
-            space_complexity = ai_insights.get("space_complexity")
+            # Generate a comprehensive message that includes AI insights
+            ai_time = ai_insights.get("ai_time_complexity", time_complexity)
+            space_complexity = ai_insights.get("space_complexity", "Not analyzed")
             explanation = ai_insights.get("explanation", "")
-            optimization = ai_insights.get("optimization_suggestions", "")
+            edge_cases = ai_insights.get("edge_cases", "")
             
-            # Create more detailed message
-            message = f"Your solution has {time_complexity} time complexity"
+            # Create a comprehensive message that serves as the main explanation
+            message = f"Your solution has {ai_time} time complexity"
             
-            if ai_time and ai_time != time_complexity:
-                message += f" (our AI suggests it might be {ai_time})"
+            if space_complexity and space_complexity != "Not determined":
+                message += f" and {space_complexity} space complexity"
             
-            if space_complexity:
-                message += f" and {space_complexity} space complexity."
-            else:
-                message += "."
-                
+            message += ". "
+            
             if explanation:
-                message += f" {explanation}"
-                
-            if optimization:
-                message += f" Optimization tip: {optimization}"
-                
-            enhanced_analysis["message"] = message
+                message += f"{explanation} "
+                    
+            if edge_cases and edge_cases != "None identified":
+                message += f"Edge cases: {edge_cases}"
+                    
+            enhanced_analysis["message"] = message.strip()
             
             return enhanced_analysis
-            
+                
         except Exception as e:
             # If AI analysis fails, return original analysis with error note
+            print(f"AI analysis error: {str(e)}")
             current_analysis["ai_analysis_error"] = str(e)
             return current_analysis
 

@@ -194,14 +194,14 @@ def analyze_submission_complexity(
 ):
     """
     Analyzes the time and space complexity of a successful submission,
-    with optional AI enhancement.
+    with AI enhancement to provide the final determination.
     
     This endpoint:
     1. Verifies that the submission exists and passed all tests
     2. Retrieves benchmark test cases for empirical analysis
-    3. Forwards request to code-runner service for basic analysis
-    4. Optionally enhances results with AI insights 
-    5. Returns the final complexity analysis results
+    3. Forwards request to code-runner service for analysis
+    4. Enhances results with AI insights 
+    5. Returns the final complexity analysis results with only the essential information
     """
     # Fetch the submission from the database
     submission = db.query(Submission).filter(Submission.id == request.submission_id).first()
@@ -233,16 +233,16 @@ def analyze_submission_complexity(
     
     # Prepare payload for code-runner service
     execution_payload = ComplexityAnalysisPayload(
-    source_code=source_code,
-    problem_id=problem_id,
-    function_name=function_name,
-    benchmark_cases=benchmark_cases
-)
+        source_code=source_code,
+        problem_id=problem_id,
+        function_name=function_name,
+        benchmark_cases=benchmark_cases
+    )
     
     # Forward request to code-runner service
     try:
         response = requests.post(ANALYZE_COMPLEXITY_URL, json=execution_payload.dict())
-        response.raise_for_status()  # Raise exception for non-200 responses
+        response.raise_for_status()
     except requests.RequestException as e:
         raise HTTPException(status_code=500, detail=f"Code execution service failed: {str(e)}")
     
@@ -253,44 +253,42 @@ def analyze_submission_complexity(
     if "error" in analysis_result:
         raise HTTPException(status_code=400, detail=analysis_result["error"])
     
-    # Optionally enhance with AI analysis
-    if should_enhance_with_ai():
-        try:
-            # Initialize the AI analyzer
-            ai_analyzer = AIComplexityAnalyzer()
-            
-            # Enhance the analysis with AI insights
-            enhanced_result = ai_analyzer.analyze_complexity(
-                source_code=source_code,
-                function_name=function_name,
-                current_analysis=analysis_result
-            )
-            
-            # Log AI enhancement
-            print(f"AI-enhanced complexity analysis performed for submission {request.submission_id}")
-            
-            # Check for complexity mismatch between AI and algorithmic analysis
-            if "complexity_mismatch" in enhanced_result:
-                print(f"Note: AI analysis suggested {enhanced_result.get('ai_time_complexity')} " 
-                     f"vs. detected {enhanced_result.get('time_complexity')}")
-            
-            analysis_result = enhanced_result
-        except Exception as e:
-            # Log error but continue with the non-enhanced result
-            print(f"AI enhancement failed: {str(e)}")
-            analysis_result["ai_analysis_error"] = str(e)
+    # Enhance with AI analysis (no longer optional - always perform AI analysis)
+    try:
+        # Initialize the AI analyzer
+        ai_analyzer = AIComplexityAnalyzer()
+        
+        # Enhance the analysis with AI insights
+        enhanced_result = ai_analyzer.analyze_complexity(
+            source_code=source_code,
+            function_name=function_name,
+            current_analysis=analysis_result
+        )
+        
+        # Use AI's assessment as the final determination
+        time_complexity = enhanced_result.get("ai_analysis", {}).get("ai_time_complexity", 
+                                enhanced_result.get("time_complexity", "Unknown"))
+        space_complexity = enhanced_result.get("ai_analysis", {}).get("space_complexity", 
+                                enhanced_result.get("space_complexity", "Not analyzed"))
+        
+        # Use the AI-enhanced message
+        message = enhanced_result.get("message", f"Your solution has {time_complexity} time complexity.")
+        
+    except Exception as e:
+        # Log error but continue with the non-enhanced result
+        print(f"AI enhancement failed: {str(e)}")
+        # Fall back to algorithmic analysis
+        time_complexity = analysis_result.get("time_complexity", "Unknown")
+        space_complexity = analysis_result.get("space_complexity", "Not analyzed")
+        message = analysis_result.get("message", f"Your solution has {time_complexity} time complexity.")
     
-    # Return final response
+    # Return only the essential information needed by the frontend
     return ComplexityAnalysisResponse(
         submission_id=str(submission.id),
         problem_id=problem_id,
-        time_complexity=analysis_result.get("time_complexity", "Unknown"),
-        space_complexity=analysis_result.get("space_complexity", "Not analyzed"),
-        details=analysis_result.get("static_analysis"),
-        visualization_data=analysis_result.get("visualization_data"),
-        confidence=analysis_result.get("confidence", 0.5),
-        message=analysis_result.get("message", f"Your solution appears to run in {analysis_result.get('time_complexity', 'Unknown')}"),
-        ai_analysis=analysis_result.get("ai_analysis")
+        time_complexity=time_complexity,
+        space_complexity=space_complexity,
+        message=message
     )
 # -------------------------------
 # Runs userCode against test cases provided by the user and returns the results

@@ -57,13 +57,8 @@ async def analyze_complexity_endpoint(request: ComplexityAnalysisPayload):
       - benchmark_cases: benchmark list of test cases to use for empirical analysis.
     
     Returns:
-      A dictionary containing:
-      - time_complexity: String representation of the time complexity (e.g., "O(n)")
-      - space_complexity: String representation of the space complexity (not implemented yet)
-      - confidence: A value between 0.0 and 1.0 indicating confidence in the analysis
-      - details: Analysis details including static and empirical results
-      - visualization_data: Data for rendering complexity graphs in the UI
-      - message: Human-readable explanation of the complexity
+      A dictionary containing the complexity analysis results that will be processed
+      by the main service before returning to the client.
     """
     source_code = request.source_code
     function_name = request.function_name
@@ -77,6 +72,7 @@ async def analyze_complexity_endpoint(request: ComplexityAnalysisPayload):
     if problem_id is None:
         raise HTTPException(status_code=400, detail="No problem_id provided")
 
+    # Run the analysis
     analysis_result = analyze_complexity(
         source_code, 
         problem_id, 
@@ -88,6 +84,8 @@ async def analyze_complexity_endpoint(request: ComplexityAnalysisPayload):
     if "error" in analysis_result:
         raise HTTPException(status_code=400, detail=analysis_result["error"])
 
+    # Return the full analysis result
+    # The main service will extract what it needs and enhance with AI analysis
     return analysis_result
 
 @app.post('/run-user-tests', response_model=PostRunCodeResponse)
