@@ -165,12 +165,12 @@ class AIComplexityAnalyzer:
             
             # Create a comprehensive message that serves as the main explanation
             message = f"Your solution has {ai_time} time complexity"
-            
+
             if space_complexity and space_complexity != "Not determined":
                 message += f" and {space_complexity} space complexity"
-            
+
             message += ". "
-            
+
             if explanation:
                 message += f"{explanation} "
                     
@@ -178,6 +178,46 @@ class AIComplexityAnalyzer:
                 message += f"Edge cases: {edge_cases}"
                     
             enhanced_analysis["message"] = message.strip()
+
+            # With this updated version:
+
+            # Create a comprehensive message with proper paragraphing
+            message_parts = []
+
+            # First paragraph - time and space complexity summary
+            complexity_summary = f"Your solution has {ai_time} time complexity"
+            if space_complexity and space_complexity != "Not determined":
+                complexity_summary += f" and {space_complexity} space complexity"
+            complexity_summary += "."
+            message_parts.append(complexity_summary)
+
+            # Second paragraph - detailed explanation
+            if explanation:
+                # Clean up the explanation text
+                cleaned_explanation = explanation.strip()
+                # Ensure it doesn't start with redundant complexity info
+                redundant_prefixes = [
+                    f"the time complexity is {ai_time}",
+                    f"time complexity is {ai_time}",
+                    f"the time complexity of this solution is {ai_time}"
+                ]
+                
+                for prefix in redundant_prefixes:
+                    if cleaned_explanation.lower().startswith(prefix.lower()):
+                        # Remove the redundant prefix
+                        cleaned_explanation = cleaned_explanation[len(prefix):].strip()
+                        if cleaned_explanation.startswith("."):
+                            cleaned_explanation = cleaned_explanation[1:].strip()
+                            
+                if cleaned_explanation:
+                    message_parts.append(cleaned_explanation)
+
+            # Third paragraph - edge cases if any
+            if edge_cases and edge_cases != "None identified":
+                message_parts.append(f"Edge cases: {edge_cases}")
+
+            # Join the paragraphs with double newlines for proper separation
+            enhanced_analysis["message"] = "\n\n".join(message_parts).strip()
             
             return enhanced_analysis
                 
