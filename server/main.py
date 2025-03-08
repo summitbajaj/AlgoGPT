@@ -3,8 +3,8 @@ from fastapi import FastAPI, Depends, HTTPException, WebSocket, WebSocketDisconn
 from sqlalchemy.orm import Session
 import requests
 from database.database import SessionLocal
-from database.models import Problem, TestCase, Submission
-from agents import get_all_test_cases, get_function_name, get_benchmark_test_cases, get_problem_context_for_ai, get_all_test_cases, get_function_name, determine_submission_status, get_first_failing_test, store_submission_results
+from database.models import Problem, TestCase, Submission, Topic
+from utils.helpers import get_all_test_cases, get_function_name, get_benchmark_test_cases, get_problem_context_for_ai, determine_submission_status, get_first_failing_test, store_submission_results
 from dotenv import load_dotenv
 import os
 from agents.ai_chatbot import graph
@@ -12,11 +12,12 @@ from langchain_core.messages import HumanMessage, AIMessage
 import sys
 import json
 from agents.ai_complexity_analyzer import AIComplexityAnalyzer, should_enhance_with_ai
+from agents.question_generator_agent import generate_new_problem
 
 # Add shared_resources to Python path
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "shared_resources")))
 
-from shared_resources.schemas import SubmitCodeRequest, SubmitCodeResponse, ComplexityAnalysisRequest, ComplexityAnalysisResponse, GetProblemResponse, ExampleTestCaseModel, PostRunCodeRequest, RunCodeExecutionPayload,PostRunCodeResponse, ChatRequest, SubmitCodeExecutionPayload, ComplexityAnalysisPayload
+from shared_resources.schemas import SubmitCodeRequest, SubmitCodeResponse, ComplexityAnalysisRequest, ComplexityAnalysisResponse, GetProblemResponse, ExampleTestCaseModel, PostRunCodeRequest, RunCodeExecutionPayload,PostRunCodeResponse, ChatRequest, SubmitCodeExecutionPayload, ComplexityAnalysisPayload, GeneratedProblemResponse, GenerateProblemRequest, TopicListResponse
 
 # Load environment variables from .env file
 load_dotenv()
@@ -64,9 +65,6 @@ def list_problems(db: Session = Depends(get_db)):
 # -------------------------------
 # 2️⃣ Fetch a single problem by ID
 # -------------------------------
-from fastapi import HTTPException
-from sqlalchemy.orm import Session
-
 @app.get("/problems/{problem_id}", response_model=GetProblemResponse)
 def get_problem(problem_id: int, db: Session = Depends(get_db)):
     problem = db.query(Problem).filter(Problem.id == problem_id).first()
@@ -462,3 +460,53 @@ async def websocket_chat(
             pass
         if connection_id in active_connections:
             del active_connections[connection_id]
+
+
+# Get available topics endpoint
+@app.get("/topics", response_model=TopicListResponse)
+def get_topics(db: Session = Depends(get_db)):
+    """Get all available topics for problem generation"""
+    try:
+        topics = db.query(Topic).all()
+        return TopicListResponse(
+            topics=[
+                {"id": topic.id, "name": topic.name}
+                for topic in topics
+            ]
+        )
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+# Generate problem endpoint
+@app.post("/generate-problem", response_model=GeneratedProblemResponse)
+def generate_problem(
+    request: GenerateProblemRequest,
+    db: Session = Depends(get_db)
+):
+    """Generate a new problem based on topic and difficulty"""
+    try:
+        # Validate topic exists
+        topic = db.query(Topic).filter(Topic.id == request.topic_id).first()
+        if not topic:
+            raise HTTPException(status_code=404, detail=f"Topic with ID {request.topic_id} not found")
+        
+        # Validate difficulty
+        valid_difficulties = ["Easy", "Medium", "Hard"]
+        if request.difficulty not in valid_difficulties:
+            raise HTTPException(
+                status_code=400, 
+                detail=f"Invalid difficulty. Must be one of: {', '.join(valid_difficulties)}"
+            )
+        
+        # Generate problem
+        result = generate_new_problem(
+            topic_id=request.topic_id,
+            difficulty=request.difficulty,
+            existing_problem_id=request.existing_problem_id
+        )
+        
+        return GeneratedProblemResponse(**result)
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))

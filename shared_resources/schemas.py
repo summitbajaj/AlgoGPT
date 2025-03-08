@@ -97,3 +97,18 @@ class ComplexityAnalysisResponse(BaseModel):
     time_complexity: str  # The determined time complexity (e.g., "O(n)", "O(n log n)")
     space_complexity: str  # The determined space complexity
     message: str  # Human-readable explanation (includes AI insights)
+
+# Request and response models for problem generation
+class GenerateProblemRequest(BaseModel):
+    topic_id: int
+    difficulty: str = "Easy"
+    existing_problem_id: Optional[int] = None
+
+class GeneratedProblemResponse(BaseModel):
+    success: bool
+    problem_id: Optional[int] = None
+    problem_data: Optional[Dict[str, Any]] = None
+    error: Optional[str] = None
+
+class TopicListResponse(BaseModel):
+    topics: List[Dict[str, Any]]
