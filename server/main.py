@@ -4,14 +4,14 @@ from sqlalchemy.orm import Session
 import requests
 from database.database import SessionLocal
 from database.models import Problem, TestCase, Submission
-from helpers import get_all_test_cases, get_function_name, get_benchmark_test_cases, get_problem_context_for_ai, get_all_test_cases, get_function_name, determine_submission_status, get_first_failing_test, store_submission_results
+from agents import get_all_test_cases, get_function_name, get_benchmark_test_cases, get_problem_context_for_ai, get_all_test_cases, get_function_name, determine_submission_status, get_first_failing_test, store_submission_results
 from dotenv import load_dotenv
 import os
-from ai_chatbot import graph
+from agents.ai_chatbot import graph
 from langchain_core.messages import HumanMessage, AIMessage
 import sys
 import json
-from ai_complexity_analyzer import AIComplexityAnalyzer, should_enhance_with_ai
+from agents.ai_complexity_analyzer import AIComplexityAnalyzer, should_enhance_with_ai
 
 # Add shared_resources to Python path
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "shared_resources")))
