@@ -8,12 +8,13 @@ import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { Problem } from "@/app/utils/api/types";
 import { ProblemDescription } from "@/app/components/problem/ProblemDescription";
 import { CodeSection } from "@/app/components/problem/CodeSection";
-import { PostRunCodeResponse, RunCodeTestCaseResult, SubmitCodeResponse, SubmitCodeTestCaseResult } from "@/app/utils/api/types";
+import { PostRunCodeResponse, RunCodeTestCaseResult, SubmitCodeResponse, SubmitCodeTestCaseResult, ComplexityAnalysisResponse } from "@/app/utils/api/types";
 import { InputData } from "@/app/components/problem/InteractiveInput";
 import { parseInputValue } from "@/app/utils/utils";
 import { AIChat } from "@/app/components/problem/AIChat";
 import { WebSocketProvider } from "@/app/context/WebSocketContext";
 import { SubmissionsTab } from "@/app/components/problem/SubmissionComponent";
+import { analyzeComplexity } from "@/app/utils/api/api";
 
 export default function ProblemPage() {
   const params = useParams<{ id: string }>();
@@ -28,6 +29,10 @@ export default function ProblemPage() {
   // Add state for submissions
   const [submissions, setSubmissions] = useState<SubmitCodeResponse[]>([]);
   const [selectedSubmission, setSelectedSubmission] = useState<SubmitCodeResponse | null>(null);
+  
+  // Add state for complexity analysis
+  const [complexityData, setComplexityData] = useState<ComplexityAnalysisResponse | null>(null);
+  const [isAnalyzing, setIsAnalyzing] = useState(false);
   
   // Replace with your actual user authentication
   const dummyUserId = "user123";
@@ -59,8 +64,27 @@ export default function ProblemPage() {
     setSubmissions((prev) => [result, ...prev]);
     setSelectedSubmission(result);
     
+    // Reset complexity data when selecting a new submission
+    setComplexityData(null);
+    
     // Switch to submissions tab
     setActiveTab("submissions");
+  };
+  
+  // Function to handle analyzing complexity
+  const handleAnalyzeComplexity = async (submissionId: string) => {
+    setIsAnalyzing(true);
+    setComplexityData(null);
+    
+    try {
+      const result = await analyzeComplexity({ submission_id: submissionId });
+      setComplexityData(result);
+    } catch (error) {
+      console.error("Error analyzing complexity:", error);
+      // You might want to show an error toast/message to the user here
+    } finally {
+      setIsAnalyzing(false);
+    }
   };
 
   useEffect(() => {
@@ -83,6 +107,11 @@ export default function ProblemPage() {
 
     if (params.id) fetchData();
   }, [params.id]);
+
+  // Reset complexity data when selecting a different submission
+  useEffect(() => {
+    setComplexityData(null);
+  }, [selectedSubmission?.submission_id]);
 
   const handleRunCodeExecution = (result: PostRunCodeResponse) => {
     // Reset running state
@@ -225,7 +254,10 @@ export default function ProblemPage() {
                       submissions={submissions} 
                       selectedSubmission={selectedSubmission}
                       onSelectSubmission={setSelectedSubmission}
-                      onUseTestCase={handleUseTestCase} // Add the new prop
+                      onUseTestCase={handleUseTestCase}
+                      complexityData={complexityData}
+                      isAnalyzing={isAnalyzing}
+                      onAnalyzeComplexity={handleAnalyzeComplexity}
                     />
                   </TabsContent>
 

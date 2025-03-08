@@ -1,11 +1,12 @@
 import React from 'react';
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { SubmitCodeResponse, SubmitCodeTestCaseResult } from "@/app/utils/api/types";
+import { SubmitCodeResponse, SubmitCodeTestCaseResult, ComplexityAnalysisResponse } from "@/app/utils/api/types";
 import { Prism as SyntaxHighlighter } from 'react-syntax-highlighter';
 import { vs } from 'react-syntax-highlighter/dist/esm/styles/prism';
 import type { CSSProperties } from 'react';
 import { BeakerIcon } from 'lucide-react';
+import { ComplexityAnalysisComponent } from './ComplexityAnalysisComponent';
 
 interface TestCaseViewProps {
   testCase: SubmitCodeTestCaseResult; 
@@ -126,9 +127,18 @@ const SubmissionCodeView: React.FC<{ code: string }> = ({ code }) => {
 interface SubmissionDetailsProps {
   submission: SubmitCodeResponse | null;
   onUseTestCase?: (testCase: SubmitCodeTestCaseResult) => void;
+  complexityData: ComplexityAnalysisResponse | null;
+  isAnalyzing: boolean;
+  onAnalyzeComplexity: (submissionId: string) => void;
 }
 
-export const SubmissionDetails: React.FC<SubmissionDetailsProps> = ({ submission, onUseTestCase }) => {
+export const SubmissionDetails: React.FC<SubmissionDetailsProps> = ({ 
+  submission, 
+  onUseTestCase,
+  complexityData,
+  isAnalyzing,
+  onAnalyzeComplexity
+}) => {
   if (!submission) {
     return (
       <div className="text-center text-gray-400 italic p-4">
@@ -169,6 +179,17 @@ export const SubmissionDetails: React.FC<SubmissionDetailsProps> = ({ submission
         <SubmissionCodeView code={submission.user_code} />
       )}
       
+      {/* Complexity Analysis (only for accepted submissions) */}
+      {isAccepted && (
+        <ComplexityAnalysisComponent
+          submissionId={submission.submission_id}
+          isAccepted={isAccepted}
+          complexityData={complexityData}
+          isAnalyzing={isAnalyzing}
+          onAnalyze={onAnalyzeComplexity}
+        />
+      )}
+      
       {/* Message when code is not available */}
       {!submission.user_code && (
         <div className="p-4 bg-gray-50 rounded-lg border border-gray-200">
@@ -185,14 +206,20 @@ interface SubmissionsTabProps {
   submissions: SubmitCodeResponse[];
   selectedSubmission: SubmitCodeResponse | null;
   onSelectSubmission?: (submission: SubmitCodeResponse) => void;
-  onUseTestCase?: (testCase: SubmitCodeTestCaseResult) => void; // New prop
+  onUseTestCase?: (testCase: SubmitCodeTestCaseResult) => void; 
+  complexityData: ComplexityAnalysisResponse | null;
+  isAnalyzing: boolean;
+  onAnalyzeComplexity: (submissionId: string) => void;
 }
 
 export const SubmissionsTab: React.FC<SubmissionsTabProps> = ({ 
   submissions,
   selectedSubmission,
   onSelectSubmission,
-  onUseTestCase
+  onUseTestCase,
+  complexityData,
+  isAnalyzing,
+  onAnalyzeComplexity
 }) => {
 
   // Simply call the parent callback if a user clicks a submission
@@ -241,6 +268,9 @@ export const SubmissionsTab: React.FC<SubmissionsTabProps> = ({
           <SubmissionDetails 
             submission={selectedSubmission} 
             onUseTestCase={onUseTestCase}
+            complexityData={complexityData}
+            isAnalyzing={isAnalyzing}
+            onAnalyzeComplexity={onAnalyzeComplexity}
           />
         </div>
       )}

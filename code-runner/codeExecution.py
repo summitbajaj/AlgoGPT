@@ -9,10 +9,10 @@ from typing import Dict, List
 
 # Add shared_resources to Python path
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "shared_resources")))
-from shared_resources.schemas import RunCodeExecutionPayload, PostRunCodeResponse, SubmitCodeExecutionPayload, SubmitCodeTestResult
+from shared_resources.schemas import RunCodeExecutionPayload, PostRunCodeResponse, SubmitCodeExecutionPayload, SubmitCodeTestResult, ComplexityAnalysisPayload
 
 # Import the benchmark-based complexity analysis function
-from complexity_analysis import combine_complexity_analysis
+from complexity_analysis import analyze_complexity
 
 app = FastAPI()
 # Add CORS middleware
@@ -46,7 +46,7 @@ async def run_code(request: SubmitCodeExecutionPayload):
     return result
 
 @app.post('/analyze-complexity')
-def analyze_complexity_endpoint(data: dict):
+async def analyze_complexity_endpoint(request: ComplexityAnalysisPayload):
     """
     Endpoint for combined static and empirical (benchmark-based) complexity analysis.
     
@@ -55,12 +55,15 @@ def analyze_complexity_endpoint(data: dict):
       - function_name: the name of the function in the Solution class.
       - problem_id: the problem ID to fetch benchmark test cases.
       - benchmark_cases: benchmark list of test cases to use for empirical analysis.
+    
+    Returns:
+      A dictionary containing the complexity analysis results that will be processed
+      by the main service before returning to the client.
     """
-
-    source_code = data.get("source_code", "")
-    function_name = data.get("function_name", "")
-    benchmark_cases = data.get("benchmark_cases", [])
-    problem_id = data.get("problem_id")
+    source_code = request.source_code
+    function_name = request.function_name
+    benchmark_cases = request.benchmark_cases
+    problem_id = request.problem_id
     
     if not source_code:
         raise HTTPException(status_code=400, detail="No code provided")
@@ -69,13 +72,20 @@ def analyze_complexity_endpoint(data: dict):
     if problem_id is None:
         raise HTTPException(status_code=400, detail="No problem_id provided")
 
-    analysis_result = combine_complexity_analysis(source_code, problem_id, function_name, benchmark_cases, repeats=5)
+    # Run the analysis
+    analysis_result = analyze_complexity(
+        source_code, 
+        problem_id, 
+        function_name, 
+        benchmark_cases, 
+        repeats=5
+    )
+    
     if "error" in analysis_result:
         raise HTTPException(status_code=400, detail=analysis_result["error"])
 
-    feedback = f"Your solution appears to run in {analysis_result['combined_complexity']}."
-    analysis_result["feedback"] = feedback
-
+    # Return the full analysis result
+    # The main service will extract what it needs and enhance with AI analysis
     return analysis_result
 
 @app.post('/run-user-tests', response_model=PostRunCodeResponse)

@@ -56,7 +56,6 @@ class GetProblemResponse(BaseModel):
     starter_code: str
 
 # @app.post("/run-code") endpoint
-
 class RunCodeTestCaseResult(RunCodeTestCase):
     output: Any
 
@@ -76,3 +75,25 @@ class ChatRequest(BaseModel):
     user_id: str
     problem_id: int
     user_message: str
+
+# @app.post("/analyze-complexity") endpoint# Request for the main FastAPI service
+class ComplexityAnalysisRequest(BaseModel):
+    submission_id: str  # The ID of the submission to analyze
+class AIComplexityInsights(BaseModel):
+    ai_time_complexity: str
+    space_complexity: str
+    edge_cases: Optional[str] = None
+    explanation: Optional[str] = None
+# Payload for forwarding to code-runner service
+class ComplexityAnalysisPayload(BaseModel):
+    source_code: str  # The submitted code to analyze
+    problem_id: int  # The problem ID
+    function_name: str  # The name of the function to analyze
+    benchmark_cases: List[Dict[str, Any]]  # Test cases with varying input sizes
+# Response model for the analysis
+class ComplexityAnalysisResponse(BaseModel):
+    submission_id: str
+    problem_id: int
+    time_complexity: str  # The determined time complexity (e.g., "O(n)", "O(n log n)")
+    space_complexity: str  # The determined space complexity
+    message: str  # Human-readable explanation (includes AI insights)

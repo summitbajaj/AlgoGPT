@@ -76,7 +76,7 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/analyze_complexity": {
+    "/analyze-complexity": {
         parameters: {
             query?: never;
             header?: never;
@@ -86,10 +86,18 @@ export interface paths {
         get?: never;
         put?: never;
         /**
-         * Analyze Complexity
-         * @description Fetches test cases, forwards request to code runner, and returns results.
+         * Analyze Submission Complexity
+         * @description Analyzes the time and space complexity of a successful submission,
+         *     with AI enhancement to provide the final determination.
+         *
+         *     This endpoint:
+         *     1. Verifies that the submission exists and passed all tests
+         *     2. Retrieves benchmark test cases for empirical analysis
+         *     3. Forwards request to code-runner service for analysis
+         *     4. Enhances results with AI insights
+         *     5. Returns the final complexity analysis results with only the essential information
          */
-        post: operations["analyze_complexity_analyze_complexity_post"];
+        post: operations["analyze_submission_complexity_analyze_complexity_post"];
         delete?: never;
         options?: never;
         head?: never;
@@ -162,17 +170,21 @@ export interface components {
         };
         /** ComplexityAnalysisRequest */
         ComplexityAnalysisRequest: {
-            /** Code */
-            code: string;
-            /** Problem Id */
-            problem_id: number;
+            /** Submission Id */
+            submission_id: string;
         };
         /** ComplexityAnalysisResponse */
         ComplexityAnalysisResponse: {
-            /** Combined Complexity */
-            combined_complexity: string;
-            /** Feedback */
-            feedback: string;
+            /** Submission Id */
+            submission_id: string;
+            /** Problem Id */
+            problem_id: number;
+            /** Time Complexity */
+            time_complexity: string;
+            /** Space Complexity */
+            space_complexity: string;
+            /** Message */
+            message: string;
         };
         /** ExampleTestCaseModel */
         ExampleTestCaseModel: {
@@ -406,7 +418,7 @@ export interface operations {
             };
         };
     };
-    analyze_complexity_analyze_complexity_post: {
+    analyze_submission_complexity_analyze_complexity_post: {
         parameters: {
             query?: never;
             header?: never;
