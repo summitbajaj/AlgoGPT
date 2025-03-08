@@ -25,6 +25,7 @@ interface PythonEditorProps {
   initialCode?: string;
   problemId: number;
   testCaseInputs: RunCodeTestCase[];
+  disableWebSocket?: boolean; // New prop to make WebSocket optional
 }
 
 export const PythonEditorComponent: React.FC<PythonEditorProps> = ({
@@ -32,7 +33,8 @@ export const PythonEditorComponent: React.FC<PythonEditorProps> = ({
   onSubmitCodeComplete,
   initialCode = "",
   problemId,
-  testCaseInputs
+  testCaseInputs,
+  disableWebSocket = false // Default to using WebSocket
 }) => {
   const [code, setCode] = useState(initialCode);
   const [lspConnected, setLspConnected] = useState(true);
@@ -40,7 +42,10 @@ export const PythonEditorComponent: React.FC<PythonEditorProps> = ({
   const codeRef = useRef(code);
   const editorRootRef = useRef<ReactDOM.Root | null>(null);
   const wrapperRef = useRef<MonacoEditorLanguageClientWrapper | null>(null);
-  const { sendCodeUpdate } = useWebSocket();
+  
+  // Only use WebSocket context if not disabled
+  const webSocketContext = !disableWebSocket ? useWebSocket() : { sendCodeUpdate: () => {} };
+  const { sendCodeUpdate } = webSocketContext;
   
   // Create refs outside of effects for the submit button and its handler
   const submitButtonRef = useRef<HTMLElement | null>(null);
@@ -50,7 +55,9 @@ export const PythonEditorComponent: React.FC<PythonEditorProps> = ({
   // This will only send code updates after the user stops typing for 1 second
   const debouncedSendCodeUpdate = useRef(
     debounce((codeToSend: string) => {
-      sendCodeUpdate(codeToSend);
+      if (!disableWebSocket) {
+        sendCodeUpdate(codeToSend);
+      }
     }, 1000)
   ).current;
 
@@ -58,11 +65,11 @@ export const PythonEditorComponent: React.FC<PythonEditorProps> = ({
   useEffect(() => {
     codeRef.current = code;
     
-    // Only send non-empty code after editor is initialized
-    if (code && code !== initialCode && editorInitialized) {
+    // Only send non-empty code after editor is initialized and if WebSocket is enabled
+    if (code && code !== initialCode && editorInitialized && !disableWebSocket) {
       debouncedSendCodeUpdate(code);
     }
-  }, [code, debouncedSendCodeUpdate, initialCode, editorInitialized]);
+  }, [code, debouncedSendCodeUpdate, initialCode, editorInitialized, disableWebSocket]);
 
   // Update code when initialCode prop changes
   useEffect(() => {
