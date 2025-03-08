@@ -68,15 +68,14 @@ def generate_problem_prompt(topic_name: str, difficulty: str, existing_problem: 
         - DO use proper whitespace and line breaks for readability
 
         CONSTRAINTS FORMATTING GUIDELINES:
-        - Format constraints as a bulleted list, with each constraint on a SINGLE line
-        - Use inline code formatting with backticks for variable names: `n`, `nums[i]`
-        - For mathematical expressions, use clear notation with proper spacing: `-10^6 <= nums[i] <= 10^6`
-        - DO NOT split mathematical expressions across multiple bullet points
-        - DO NOT use line breaks within a single constraint
-        - EXAMPLE of proper constraints format:
-          • The length of the array `nums` is at most `10^4`
-          • Each element in the array `nums[i]` is in the range `-10^6 <= nums[i] <= 10^6`
-          • The output will be a positive integer
+        - Format constraints as simple newline-separated text
+        - DO NOT use bullet points, asterisks, or any Markdown formatting in constraints
+        - For array length constraints, use format: 1 <= nums.length <= 10^5
+        - For element range constraints, use format: -10^9 <= nums[i] <= 10^9
+        - For example:
+          1 <= nums.length <= 10^5
+          -10^9 <= nums[i] <= 10^9
+          -10^9 <= target <= 10^9
 
         CRITICAL: For the examples, both input_data and expected_output must be proper JSON objects/dictionaries, not arrays or strings. 
         For array inputs, use a dictionary with a key like "nums" or "values" that contains the array.
@@ -97,7 +96,7 @@ def generate_problem_prompt(topic_name: str, difficulty: str, existing_problem: 
         Format your response strictly as a JSON object with these fields:
         - title: A concise, descriptive title
         - description: The full problem statement with proper Markdown formatting
-        - constraints: Input/output constraints and limitations formatted as described above
+        - constraints: Input/output constraints as simple newline-separated text (NOT markdown, NO bullet points)
         - function_name: The name of the function to implement (use snake_case for Python)
         - examples: Array of objects with input_data (dictionary), expected_output, and explanation fields
         - starter_code: Basic Python function definition to get students started
@@ -133,12 +132,11 @@ def generate_problem_prompt(topic_name: str, difficulty: str, existing_problem: 
     1. Make sure all example input_data is a JSON object/dictionary, not a string or array. 
     For array inputs, use format: {{"nums": [1, 2, 3]}} not "[1, 2, 3]".
     
-    2. Format constraints as a clean bulleted list with each constraint on a SINGLE line.
+    2. For constraints, use ONLY simple newline-separated text - NO bullet points, NO markdown:
     Example:
-    • The length of the array `nums` is at most `10^4`
-    • Each element `nums[i]` is in the range `-10^6 <= nums[i] <= 10^6`
-    
-    3. DO NOT split mathematical formulas or expressions across multiple lines.
+    1 <= nums.length <= 10^5
+    -10^9 <= nums[i] <= 10^9
+    -10^9 <= target <= 10^9
     """
     
     return system_prompt, human_prompt
@@ -299,6 +297,45 @@ def select_topic_and_difficulty(state: QuestionGeneratorState):
         "error": "Topic ID and difficulty must be provided"
     }
 
+def clean_constraints(constraints_text):
+    """
+    Clean constraints text from the AI to ensure proper rendering in the frontend.
+    Removes bullet points and other formatting that might cause rendering issues.
+    """
+    if not constraints_text:
+        return ""
+    
+    # Split by newlines or bullet points
+    if '\n' in constraints_text:
+        lines = constraints_text.split('\n')
+    else:
+        # Handle potential bullet points or other separators
+        lines = constraints_text.split('• ')
+    
+    # Clean each line
+    cleaned_lines = []
+    for line in lines:
+        # Remove leading/trailing whitespace
+        line = line.strip()
+        
+        # Skip empty lines
+        if not line:
+            continue
+            
+        # Remove bullet points, asterisks, dashes that might be at start of line
+        line = line.lstrip('•*-– \t')
+        line = line.strip()
+        
+        # Remove any JSON-like formatting that might be present (quotes, braces)
+        line = line.strip('"\'{}')
+        
+        # Add to cleaned lines if not empty
+        if line:
+            cleaned_lines.append(line)
+    
+    # Join with newlines
+    return '\n'.join(cleaned_lines)
+
 def generate_problem(state: QuestionGeneratorState):
     """Generate a new problem based on topic and difficulty"""
     if state.get("error"):
@@ -348,6 +385,10 @@ def generate_problem(state: QuestionGeneratorState):
             
             # Add the difficulty to the problem data
             problem_data["difficulty"] = difficulty
+            
+            # Clean the constraints format
+            if "constraints" in problem_data:
+                problem_data["constraints"] = clean_constraints(problem_data["constraints"])
             
             return {
                 **state,
