@@ -40,6 +40,8 @@ class ProfilingState(TypedDict):
     recommendations: List[Dict[str, Any]]  # Final recommendations
     errors: List[str]  # Any errors encountered during the process
     question_selection_request: Optional[Dict[str, Any]]  # Used to request new questions
+    session_start_time: datetime  # When the session started
+    struggle_patterns: Dict[str, int]  # Track areas where student struggles
 
 def initialize_profiling(state: ProfilingState) -> ProfilingState:
     """
@@ -102,14 +104,12 @@ def initialize_profiling(state: ProfilingState) -> ProfilingState:
             "topic_assessments": {},
             "recommendations": [],
             "errors": [],
-            "question_selection_request": None
+            "question_selection_request": None,
+            "session_start_time": datetime.utcnow(),
+            "struggle_patterns": {}
         }
         return result
     except Exception as e:
-        return {
-            **state,
-            "errors": [f"Error initializing profiling: {str(e)}"]
-        }
         return {
             **state,
             "errors": [f"Error initializing profiling: {str(e)}"]
@@ -122,6 +122,26 @@ def select_next_topic(state: ProfilingState) -> ProfilingState:
     Determine the next topic to assess based on current state.
     Uses topic progression map and previous assessment results.
     """
+    
+    # Check if we've reached maximum problems limit
+    MAX_QUESTIONS = 12  # Adjust as needed
+    
+    total_problems_attempted = len(state["completed_problems"])
+    
+    # Check if we've reached the maximum questions
+    if total_problems_attempted >= MAX_QUESTIONS:
+        return {
+            **state, 
+            "current_phase": "finalizing"
+        }
+    
+    # Check if we've reached time limit (30 minutes)
+    current_time = datetime.utcnow()
+    session_start_time = state.get("session_start_time", current_time)
+    session_duration = (current_time - session_start_time).total_seconds() / 60
+    
+    if session_duration >= 30:  # 30-minute limit
+        return {**state, "current_phase": "finalizing"}
     
     db = SessionLocal()
     try:
@@ -385,6 +405,17 @@ def process_submission_result(state: ProfilingState, submission_result: Dict[str
             "submission_id": submission_result["submission_id"]
         }
         
+        # Track struggle areas from code analysis
+        struggle_areas = submission_result.get("code_analysis", {}).get("struggle_areas", [])
+        if not struggle_areas and status.lower() != "accepted":
+            # If no specific struggles identified but submission failed, add a generic one
+            struggle_areas = ["algorithm_understanding"]
+            
+        # Update struggle patterns
+        current_struggles = state.get("struggle_patterns", {})
+        for area in struggle_areas:
+            current_struggles[area] = current_struggles.get(area, 0) + 1
+        
         # Handle UUID conversion safely
         try:
             # Try to parse as UUID
@@ -438,7 +469,8 @@ def process_submission_result(state: ProfilingState, submission_result: Dict[str
             "assessment_status": {
                 **current_status,
                 "problems_solved": problems_solved
-            }
+            },
+            "struggle_patterns": current_struggles
         }
         
         return result
@@ -556,6 +588,42 @@ def finalize_profiling(state: ProfilingState) -> ProfilingState:
                 "message": f"Continue practicing {topic_name} to improve mastery"
             })
         
+        # 4. Add recommendations based on struggle patterns
+        struggle_patterns = state.get("struggle_patterns", {})
+        if struggle_patterns:
+            # Find top 2 struggles
+            top_struggles = sorted(struggle_patterns.items(), key=lambda x: x[1], reverse=True)[:2]
+            
+            # Map struggle codes to readable names and recommendations
+            struggle_map = {
+                "algorithm_understanding": "Algorithm Selection",
+                "data_structure_misuse": "Data Structure Usage",
+                "logic_errors": "Logic Implementation",
+                "efficiency_problems": "Code Efficiency",
+                "edge_case_handling": "Edge Case Handling"
+            }
+            
+            struggle_recommendations = {
+                "algorithm_understanding": "Work on understanding which algorithms to apply for different problem types",
+                "data_structure_misuse": "Practice choosing the right data structures for your problems",
+                "logic_errors": "Focus on step-by-step implementation of algorithms",
+                "efficiency_problems": "Study time and space complexity optimizations",
+                "edge_case_handling": "Pay attention to edge cases and test boundary conditions"
+            }
+            
+            for struggle_code, count in top_struggles:
+                struggle_name = struggle_map.get(struggle_code, struggle_code)
+                recommendation = struggle_recommendations.get(
+                    struggle_code, 
+                    f"Work on improving your {struggle_name} skills"
+                )
+                
+                recommendations.append({
+                    "type": "skill_gap",
+                    "area": struggle_name,
+                    "message": f"{recommendation}. This was challenging in {count} problems."
+                })
+        
         result = {
             **state,
             "topic_assessments": topic_assessments,
@@ -634,7 +702,9 @@ def start_profiling_session(student_id: str):
         "topic_assessments": {},
         "recommendations": [],
         "errors": [],
-        "question_selection_request": None
+        "question_selection_request": None,
+        "session_start_time": datetime.utcnow(),
+        "struggle_patterns": {}
     }
     
     # Configure thread for this session
@@ -737,7 +807,8 @@ def process_submission_and_continue(session_id: str, submission_result: Dict[str
                     "topic_assessments": final_state["topic_assessments"],
                     "recommendations": final_state["recommendations"],
                     "problems_attempted": len(final_state["completed_problems"]),
-                    "problems_solved": final_state["assessment_status"]["problems_solved"]
+                    "problems_solved": final_state["assessment_status"]["problems_solved"],
+                    "struggle_areas": [{"area": k, "count": v} for k, v in final_state.get("struggle_patterns", {}).items()]
                 }
             }
         

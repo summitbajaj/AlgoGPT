@@ -1,5 +1,6 @@
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
+from sqlalchemy import func
 from typing import Dict, List, Any, Optional
 from pydantic import BaseModel
 from database.database import SessionLocal
@@ -8,6 +9,9 @@ from agents.question_selector_agent import select_problem
 from agents.analysis_agent import analyze_submission
 import json
 import traceback
+import uuid
+from datetime import datetime
+from database.models import StudentProfile, StudentTopicMastery, Topic, StudentAttempt, Problem, Submission, TestCase
 
 # Define get_db function here to avoid circular imports
 def get_db():
@@ -44,6 +48,20 @@ class ProfilingStatusResponse(BaseModel):
     problems_attempted: int
     current_topic: Optional[str] = None
     current_difficulty: Optional[str] = None
+
+class StudentAssessmentResponse(BaseModel):
+    student_id: str
+    skill_level: str
+    overall_mastery: float
+    topic_masteries: List[Dict[str, Any]]
+    recent_attempts: List[Dict[str, Any]]
+    struggle_patterns: List[Dict[str, Any]]
+
+class AdminDashboardResponse(BaseModel):
+    student_count: int
+    topic_stats: List[Dict[str, Any]]
+    recent_assessments: List[Dict[str, Any]]
+    common_struggles: List[Dict[str, Any]]
 
 # Create router
 profiling_router = APIRouter()
@@ -265,6 +283,204 @@ async def api_profiling_status(
             current_topic=assessment_status.get("current_topic_name"),
             current_difficulty=assessment_status.get("current_difficulty")
         )
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+# Endpoint to get student assessment data
+@profiling_router.get("/student/{student_id}/assessment", response_model=StudentAssessmentResponse)
+async def get_student_assessment(
+    student_id: str,
+    db: Session = Depends(get_db)
+):
+    """Get assessment data for a specific student"""
+    try:
+        # Convert student_id to UUID
+        try:
+            uuid_student_id = uuid.UUID(student_id)
+        except ValueError:
+            uuid_student_id = uuid.uuid5(uuid.NAMESPACE_DNS, student_id)
+        
+        # Get student profile
+        student_profile = db.query(StudentProfile).filter(
+            StudentProfile.user_id == uuid_student_id
+        ).first()
+        
+        if not student_profile:
+            raise HTTPException(status_code=404, detail="Student profile not found")
+        
+        # Get topic masteries
+        topic_masteries = db.query(StudentTopicMastery).filter(
+            StudentTopicMastery.student_profile_id == student_profile.id
+        ).all()
+        
+        # Format topic mastery data
+        mastery_data = []
+        for tm in topic_masteries:
+            topic = db.query(Topic).filter(Topic.id == tm.topic_id).first()
+            if topic and tm.problems_attempted > 0:
+                mastery_data.append({
+                    "topic_name": topic.name,
+                    "mastery_level": tm.mastery_level,
+                    "problems_attempted": tm.problems_attempted,
+                    "problems_solved": tm.problems_solved,
+                    "last_attempted_at": tm.last_attempted_at
+                })
+        
+        # Get recent attempts
+        attempts = db.query(StudentAttempt).filter(
+            StudentAttempt.student_id == uuid_student_id
+        ).order_by(StudentAttempt.start_time.desc()).limit(10).all()
+        
+        # Format attempt data
+        attempt_data = []
+        for attempt in attempts:
+            problem = db.query(Problem).filter(Problem.id == attempt.problem_id).first()
+            if problem:
+                # Get problem topics
+                topics = [topic.name for topic in problem.topics]
+                
+                attempt_data.append({
+                    "problem_id": attempt.problem_id,
+                    "problem_title": problem.title,
+                    "problem_difficulty": problem.difficulty.value,
+                    "topics": topics,
+                    "start_time": attempt.start_time,
+                    "completed": attempt.completed,
+                    "submission_count": attempt.submission_count
+                })
+        
+        # Calculate skill level
+        overall_mastery = 0
+        if mastery_data:
+            overall_mastery = sum(item["mastery_level"] for item in mastery_data) / len(mastery_data)
+        
+        skill_level = "Beginner"
+        if overall_mastery >= 80:
+            skill_level = "Advanced"
+        elif overall_mastery >= 50:
+            skill_level = "Intermediate"
+        
+        # Get struggle patterns (mocked for now - would need to be stored in DB from analysis agent)
+        # You would need to add a new table to track this data
+        # This is a placeholder implementation
+        struggle_patterns = [
+            {"area": "Algorithm Selection", "count": 3},
+            {"area": "Edge Case Handling", "count": 2},
+            {"area": "Code Efficiency", "count": 1}
+        ]
+        
+        return {
+            "student_id": student_id,
+            "skill_level": skill_level,
+            "overall_mastery": overall_mastery,
+            "topic_masteries": mastery_data,
+            "recent_attempts": attempt_data,
+            "struggle_patterns": struggle_patterns
+        }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+# Admin Dashboard Endpoint
+@profiling_router.get("/admin/dashboard", response_model=AdminDashboardResponse)
+async def get_admin_dashboard(db: Session = Depends(get_db)):
+    """Get aggregated data for admin dashboard"""
+    try:
+        # Get student count
+        student_count = db.query(StudentProfile).count()
+        
+        # Get topic stats
+        topic_stats = []
+        topics = db.query(Topic).all()
+        
+        for topic in topics:
+            # Average mastery for this topic
+            avg_mastery = db.query(func.avg(StudentTopicMastery.mastery_level)).filter(
+                StudentTopicMastery.topic_id == topic.id,
+                StudentTopicMastery.problems_attempted > 0
+            ).scalar() or 0
+            
+            # Success rate
+            masteries = db.query(StudentTopicMastery).filter(
+                StudentTopicMastery.topic_id == topic.id,
+                StudentTopicMastery.problems_attempted > 0
+            ).all()
+            
+            success_rate = 0
+            total_attempts = 0
+            if masteries:
+                total_attempted = sum(m.problems_attempted for m in masteries)
+                total_solved = sum(m.problems_solved for m in masteries)
+                success_rate = (total_solved / total_attempted * 100) if total_attempted > 0 else 0
+                total_attempts = total_attempted
+            
+            topic_stats.append({
+                "topic_name": topic.name,
+                "avg_mastery": float(avg_mastery),
+                "success_rate": float(success_rate),
+                "total_attempts": total_attempts
+            })
+        
+        # Get recent assessments
+        # This assumes you're storing assessment completion timestamps
+        # You might need to adapt this based on your data model
+        recent_profiles = db.query(StudentProfile).order_by(
+            StudentProfile.updated_at.desc()
+        ).limit(10).all()
+        
+        recent_assessments = []
+        for profile in recent_profiles:
+            # Determine user name (you'll need to adapt this to your user model)
+            # This is a placeholder - replace with your actual user lookup
+            username = "User " + str(profile.user_id)[:8]
+            
+            # Calculate skill level and stats
+            masteries = db.query(StudentTopicMastery).filter(
+                StudentTopicMastery.student_profile_id == profile.id
+            ).all()
+            
+            skill_level = "Beginner"
+            problems_attempted = 0
+            problems_solved = 0
+            
+            if masteries:
+                avg_mastery = sum(m.mastery_level for m in masteries) / len(masteries)
+                if avg_mastery >= 80:
+                    skill_level = "Advanced"
+                elif avg_mastery >= 50:
+                    skill_level = "Intermediate"
+                
+                problems_attempted = sum(m.problems_attempted for m in masteries)
+                problems_solved = sum(m.problems_solved for m in masteries)
+            
+            recent_assessments.append({
+                "id": str(profile.user_id),
+                "name": username,
+                "assessment_date": profile.updated_at,
+                "skill_level": skill_level,
+                "problems_attempted": problems_attempted,
+                "problems_solved": problems_solved
+            })
+        
+        # Get common struggle areas
+        # This is a placeholder - you'll need to implement struggle tracking first
+        # as recommended in the previous suggestions
+        common_struggles = [
+            {"area": "Algorithm understanding", "percentage": 68, "count": 32},
+            {"area": "Edge case handling", "percentage": 57, "count": 27},
+            {"area": "Efficiency optimization", "percentage": 51, "count": 24},
+            {"area": "Data structure selection", "percentage": 40, "count": 19},
+            {"area": "Code organization", "percentage": 23, "count": 11}
+        ]
+        
+        # Once you implement the struggle tracking in analysis_agent.py and
+        # store this data, you can query it here
+        
+        return {
+            "student_count": student_count,
+            "topic_stats": topic_stats,
+            "recent_assessments": recent_assessments,
+            "common_struggles": common_struggles
+        }
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 

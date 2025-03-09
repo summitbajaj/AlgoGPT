@@ -37,6 +37,7 @@ class AnalysisState(TypedDict):
     test_results: List[Dict[str, Any]]
     is_profiling: bool
     problem_data: Optional[Dict[str, Any]]
+    student_data: Optional[Dict[str, Any]]
     code_analysis: Optional[Dict[str, Any]]
     mastery_update: Optional[Dict[str, Any]]
     feedback: Optional[Dict[str, Any]]
@@ -145,7 +146,8 @@ def analyze_code_quality(state: AnalysisState) -> AnalysisState:
                 "approach_score": 0,
                 "efficiency_score": 0,
                 "readability_score": 0,
-                "comments": "Submission did not pass all test cases."
+                "comments": "Submission did not pass all test cases.",
+                "struggle_areas": ["algorithm_understanding"]
             }
         }
     
@@ -166,6 +168,13 @@ def analyze_code_quality(state: AnalysisState) -> AnalysisState:
         - Efficiency: Time and space complexity optimization
         - Readability: Variable names, comments, and overall clarity
         
+        Also identify specific struggle areas such as:
+        - algorithm_understanding: Issues with selecting or implementing the right algorithm
+        - data_structure_misuse: Problems with using appropriate data structures
+        - logic_errors: Fundamental logical mistakes in implementation
+        - efficiency_problems: Suboptimal time or space complexity
+        - edge_case_handling: Missing or improper handling of edge cases
+        
         Format your response as a JSON object with these fields:
         - quality_score: numeric score (1-10)
         - approach_score: numeric score (1-10)
@@ -173,6 +182,7 @@ def analyze_code_quality(state: AnalysisState) -> AnalysisState:
         - readability_score: numeric score (1-10)
         - comments: detailed feedback with specific suggestions
         - complexity: estimated time complexity in Big-O notation
+        - struggle_areas: array of struggle areas from the list above that apply
         """
         
         human_prompt = f"""
@@ -231,12 +241,27 @@ def analyze_code_quality(state: AnalysisState) -> AnalysisState:
                 except:
                     analysis_result[key] = 1  # Default if invalid
             
+            # Ensure struggle_areas exists and is valid
+            if "struggle_areas" not in analysis_result or not isinstance(analysis_result["struggle_areas"], list):
+                # Create default struggle areas based on scores
+                struggle_areas = []
+                if analysis_result["approach_score"] < 5:
+                    struggle_areas.append("algorithm_understanding")
+                if analysis_result["efficiency_score"] < 5:
+                    struggle_areas.append("efficiency_problems")
+                if analysis_result["quality_score"] < 5:
+                    struggle_areas.append("logic_errors")
+                
+                analysis_result["struggle_areas"] = struggle_areas
+            
             return {
                 **state,
                 "code_analysis": analysis_result
             }
         except json.JSONDecodeError:
             # If JSON parsing fails, create a basic analysis
+            default_struggles = ["algorithm_understanding"] if state["submission_status"] != "Accepted" else []
+            
             return {
                 **state,
                 "code_analysis": {
@@ -245,7 +270,8 @@ def analyze_code_quality(state: AnalysisState) -> AnalysisState:
                     "efficiency_score": 5,
                     "readability_score": 5,
                     "comments": "Unable to parse detailed analysis. The code " + 
-                                ("passes all test cases." if state["submission_status"] == "Accepted" else "fails some test cases.")
+                                ("passes all test cases." if state["submission_status"] == "Accepted" else "fails some test cases."),
+                    "struggle_areas": default_struggles
                 }
             }
     except Exception as e:
@@ -257,7 +283,8 @@ def analyze_code_quality(state: AnalysisState) -> AnalysisState:
                 "approach_score": 5,
                 "efficiency_score": 5,
                 "readability_score": 5,
-                "comments": "Error occurred during analysis."
+                "comments": "Error occurred during analysis.",
+                "struggle_areas": ["algorithm_understanding"] if state["submission_status"] != "Accepted" else []
             }
         }
         
@@ -361,11 +388,28 @@ def generate_feedback(state: AnalysisState) -> AnalysisState:
             
             mastery_feedback = "\n".join(topic_updates)
             
+            # Add struggle area feedback based on code analysis
+            struggle_areas = code_analysis.get("struggle_areas", [])
+            struggle_feedback = ""
+            
+            struggle_advice = {
+                "algorithm_understanding": "Make sure you understand the core algorithm needed for this problem.",
+                "data_structure_misuse": "Consider whether you're using the most appropriate data structures.",
+                "logic_errors": "Check your logic carefully, especially in conditional statements and loops.",
+                "efficiency_problems": "Your solution might be inefficient. Look for ways to reduce time complexity.",
+                "edge_case_handling": "Pay attention to edge cases like empty inputs, negative values, or boundary conditions."
+            }
+            
+            if struggle_areas:
+                struggle_items = [f"• {struggle_advice.get(area, area)}" for area in struggle_areas[:2]]
+                struggle_feedback = "Areas to focus on:\n" + "\n".join(struggle_items)
+            
             # Combine feedback
             feedback = {
                 "title": "Not quite there yet",
                 "status": status_feedback,
                 "details": details_feedback,
+                "struggles": struggle_feedback,
                 "mastery": mastery_feedback,
                 "next_steps": "Review the algorithm, test with examples, and try again."
             }
@@ -592,6 +636,7 @@ def analyze_submission(
         "test_results": test_results,
         "is_profiling": is_profiling,
         "problem_data": None,
+        "student_data": None,
         "code_analysis": None,
         "mastery_update": None,
         "feedback": None,
