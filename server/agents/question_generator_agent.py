@@ -16,6 +16,7 @@ import json
 import re
 import uuid
 import logging
+from utils.embedding_creator import create_embedding_after_generation
 
 # Load environment variables
 load_dotenv()
@@ -447,6 +448,15 @@ def store_problem(state: QuestionGeneratorState):
                 state["topic_id"]
             )
             
+            # Create embedding for the new problem
+            try:
+                embedding_result = create_embedding_after_generation(problem_id)
+                if not embedding_result.get("success", False):
+                    print(f"Warning: Failed to create embedding: {embedding_result.get('error', 'Unknown error')}")
+            except Exception as embed_error:
+                # Don't fail the entire process if embedding creation fails
+                print(f"Error creating embedding: {str(embed_error)}")
+            
             return {
                 **state,
                 "stored_problem_id": problem_id
@@ -458,7 +468,6 @@ def store_problem(state: QuestionGeneratorState):
             **state,
             "error": f"Failed to store problem: {str(e)}"
         }
-
 # Create the LangGraph for the Question Generator Agent
 def create_question_generator_graph():
     """Create and return the Question Generator agent graph"""

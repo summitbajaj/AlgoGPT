@@ -13,6 +13,8 @@ import sys
 import json
 from agents.ai_complexity_analyzer import AIComplexityAnalyzer, should_enhance_with_ai
 from agents.question_generator_agent import generate_new_problem
+from utils.embedding_creator import create_embedding_after_generation
+from profiling_api import register_profiling_api
 
 # Add shared_resources to Python path
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "shared_resources")))
@@ -37,6 +39,7 @@ app.add_middleware(
     allow_methods=["*"],  # Allow all HTTP methods (GET, POST, etc.)
     allow_headers=["*"],  # Allow all headers
 )
+
 # Dependency to get a database session
 def get_db():
     db = SessionLocal()
@@ -44,6 +47,9 @@ def get_db():
         yield db
     finally:
         db.close()
+
+# Register profiling API routes
+register_profiling_api(app)
 
 # -------------------------------
 # 1️⃣ Fetch all problems
@@ -376,7 +382,7 @@ async def chat_ai(request: ChatRequest, db: Session = Depends(get_db)):
         }
     )
 
-    # Send back the AI’s latest reply
+    # Send back the AI's latest reply
     return {"answer": response["messages"][-1].content}
 
 # -------------------------------
@@ -504,6 +510,16 @@ def generate_problem(
             difficulty=request.difficulty,
             existing_problem_id=request.existing_problem_id
         )
+        
+        # If problem was successfully generated, create embedding
+        if result.get("success", False) and result.get("problem_id"):
+            try:
+                embedding_result = create_embedding_after_generation(result["problem_id"])
+                # Note: We don't fail if embedding creation fails, just log it
+                if not embedding_result.get("success", False):
+                    print(f"Warning: Failed to create embedding: {embedding_result.get('error', 'Unknown error')}")
+            except Exception as e:
+                print(f"Error creating embedding: {str(e)}")
         
         return GeneratedProblemResponse(**result)
     except HTTPException:
