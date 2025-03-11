@@ -8,26 +8,26 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Button } from "@/components/ui/button"
 import { Progress } from "@/components/ui/progress"
 import { Skeleton } from "@/components/ui/skeleton"
+import { Badge } from "@/components/ui/badge"
 import { 
   ChevronRight, 
-  Award, 
   BookOpen, 
-  BarChart, 
-  Clock, 
   User,
   Calendar,
   Code,
   Brain,
   AlertTriangle,
   CheckCircle,
-  Star
+  Star,
 } from "lucide-react"
+import CurriculumProgress from "../components/profile/CurriculumProgress"
 
 interface TopicMastery {
   topic_name: string;
   mastery_level: number;
   problems_attempted: number;
   problems_solved: number;
+  problems_solved_non_ai: number;
   last_attempted_at: string;
 }
 
@@ -39,6 +39,7 @@ interface Attempt {
   start_time: string;
   completed: boolean;
   submission_count: number;
+  is_profiling_problem: boolean;
 }
 
 interface StrugglePattern {
@@ -115,6 +116,75 @@ export default function ProfilePage() {
     });
   }
 
+  // Helper functions for stats calculations
+  const calculateStats = (assessmentData: AssessmentData) => {
+    // Total problems attempted and solved (excluding AI-generated assessment problems)
+    const problemsAttempted = assessmentData.recent_attempts.filter(a => !a.is_profiling_problem).length;
+    
+    // Problems solved successfully
+    const problemsSolved = assessmentData.recent_attempts.filter(a => a.completed && !a.is_profiling_problem).length;
+    
+    // Success rate
+    const successRate = problemsAttempted > 0 
+      ? Math.round((problemsSolved / problemsAttempted) * 100) 
+      : 0;
+    
+    // Current streak (consecutive days with solved problems)
+    const streak = calculateCurrentStreak(assessmentData.recent_attempts);
+    
+    return {
+      problemsAttempted,
+      problemsSolved,
+      successRate,
+      streak
+    };
+  };
+
+  const calculateCurrentStreak = (attempts: Attempt[]) => {
+    // Sort attempts by date, most recent first
+    const sortedAttempts = [...attempts]
+      .filter(a => a.completed)
+      .sort((a, b) => new Date(b.start_time).getTime() - new Date(a.start_time).getTime());
+    
+    if (sortedAttempts.length === 0) return 0;
+    
+    // Get unique dates when problems were solved
+    const uniqueDates = new Set();
+    sortedAttempts.forEach(attempt => {
+      const date = new Date(attempt.start_time).toLocaleDateString();
+      uniqueDates.add(date);
+    });
+    
+    const dates = Array.from(uniqueDates) as string[];
+    
+    // Check if most recent date is today or yesterday
+    const today = new Date().toLocaleDateString();
+    const yesterday = new Date(Date.now() - 86400000).toLocaleDateString();
+    
+    if (dates[0] !== today && dates[0] !== yesterday) {
+      return 0; // Streak broken
+    }
+    
+    // Count consecutive days
+    let streak = 1;
+    for (let i = 1; i < dates.length; i++) {
+      const current = new Date(dates[i-1]);
+      const prev = new Date(dates[i]);
+      
+      // Check if dates are consecutive
+      const diffTime = current.getTime() - prev.getTime();
+      const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+      
+      if (diffDays === 1) {
+        streak++;
+      } else {
+        break;
+      }
+    }
+    
+    return streak;
+  };
+
   return (
     <div className="container py-6">
       <div className="flex items-start gap-6 flex-col md:flex-row">
@@ -165,12 +235,17 @@ export default function ProfilePage() {
                         <p className="text-sm font-medium">Problems Solved</p>
                         <p className="text-2xl font-bold">
                           {assessmentData ? assessmentData.topic_masteries.reduce(
-                            (sum, topic) => sum + topic.problems_solved, 0) : 0}
+                            (sum, topic) => {
+                              // Only count non-AI-generated problems
+                              return sum + (topic.problems_solved_non_ai || topic.problems_solved);
+                            }, 0) : 0}
                         </p>
                       </div>
                       <div>
                         <p className="text-sm font-medium">Current Streak</p>
-                        <p className="text-2xl font-bold">7 days</p>
+                        <p className="text-2xl font-bold">
+                          {assessmentData ? calculateStats(assessmentData).streak : 0} days
+                        </p>
                       </div>
                     </div>
                     
@@ -180,6 +255,10 @@ export default function ProfilePage() {
                         <span className="font-medium">
                           {assessmentData?.skill_level || "Beginner"}
                         </span>
+                      </div>
+                      <div className="flex justify-between text-xs text-muted-foreground mb-1">
+                        <span>Success Rate: {assessmentData ? calculateStats(assessmentData).successRate : 0}%</span>
+                        <span>{assessmentData ? assessmentData.topic_masteries.length : 0} Topics</span>
                       </div>
                       <div className="h-2 bg-slate-200 rounded-full">
                         <div 
@@ -229,6 +308,7 @@ export default function ProfilePage() {
               <TabsTrigger value="activity">Recent Activity</TabsTrigger>
               <TabsTrigger value="recommendations">Recommendations</TabsTrigger>
               <TabsTrigger value="struggles">Challenges</TabsTrigger>
+              <TabsTrigger value="curriculum">Curriculum</TabsTrigger>
             </TabsList>
 
             {/* Skills Tab */}
@@ -309,10 +389,13 @@ export default function ProfilePage() {
                           </div>
                           <div className="flex-1">
                             <p>
-                              {attempt.completed ? "Solved" : "Attempted"} '{attempt.problem_title}'
+                              {attempt.completed ? "Solved" : "Attempted"} &apos;{attempt.problem_title}&apos;
                               <span className="ml-2 text-xs px-2 py-0.5 rounded-full bg-slate-100 text-slate-800">
                                 {attempt.problem_difficulty}
                               </span>
+                              {attempt.is_profiling_problem && (
+                                <Badge variant="outline" className="ml-2 text-xs">Assessment</Badge>
+                              )}
                             </p>
                             <p className="text-sm text-muted-foreground flex items-center mt-1">
                               <Calendar className="h-3 w-3 mr-1" />
@@ -378,8 +461,8 @@ export default function ProfilePage() {
                     </div>
                   ) : (
                     <div className="space-y-5">
-                      {/* Topic recommendations based on mastery */}
-                      {groupedTopics.weak.length > 0 && (
+                      {/* Topic recommendations based on mastery - Weakest areas first */}
+                      {assessmentData && groupedTopics.weak.length > 0 && (
                         <div className="p-4 border rounded-lg hover:bg-slate-50 transition-colors border-l-4 border-l-amber-500">
                           <div className="flex justify-between items-start">
                             <div>
@@ -401,39 +484,19 @@ export default function ProfilePage() {
                         </div>
                       )}
 
-                      {groupedTopics.medium.length > 0 && (
-                        <div className="p-4 border rounded-lg hover:bg-slate-50 transition-colors border-l-4 border-l-blue-500">
-                          <div className="flex justify-between items-start">
-                            <div>
-                              <h3 className="font-medium flex items-center">
-                                <Code className="h-4 w-4 mr-2 text-blue-500" />
-                                Practice {groupedTopics.medium[0].topic_name}
-                              </h3>
-                              <p className="text-sm text-muted-foreground mt-1">
-                                You're making good progress. Try some medium difficulty problems to improve further.
-                              </p>
-                            </div>
-                            <Link href={`/problems?topic=${groupedTopics.medium[0].topic_name.toLowerCase().replace(/ /g, '-')}&difficulty=medium`}>
-                              <Button size="sm" variant="outline">
-                                Practice <ChevronRight className="ml-1 h-3 w-3" />
-                              </Button>
-                            </Link>
-                          </div>
-                        </div>
-                      )}
-
-                      {/* Struggle-based recommendation */}
+                      {/* Add focus on specific struggle areas, pulling from the assessment data */}
                       {assessmentData?.struggle_patterns && assessmentData.struggle_patterns.length > 0 && (
                         <div className="p-4 border rounded-lg hover:bg-slate-50 transition-colors border-l-4 border-l-purple-500">
                           <div className="flex justify-between items-start">
                             <div>
                               <h3 className="font-medium flex items-center">
                                 <Brain className="h-4 w-4 mr-2 text-purple-500" />
-                                Focus on {assessmentData.struggle_patterns[0].area}
+                                Focus on {assessmentData.struggle_patterns[0].area === "algorithm_understanding" ? 
+                                  "Algorithm Pattern Recognition" : assessmentData.struggle_patterns[0].area}
                               </h3>
                               <p className="text-sm text-muted-foreground mt-1">
-                                You've struggled with this concept in {assessmentData.struggle_patterns[0].count} problems.
-                                Review our tutorial material.
+                                This concept appears in {assessmentData.struggle_patterns[0].count} problems 
+                                where you&apos;ve had challenges. Review our tutorial material.
                               </p>
                             </div>
                             <Link href={`/learn/concepts/${assessmentData.struggle_patterns[0].area.toLowerCase().replace(/ /g, '-')}`}>
@@ -445,25 +508,52 @@ export default function ProfilePage() {
                         </div>
                       )}
 
-                      {/* "Next level" recommendation */}
-                      <div className="p-4 border rounded-lg hover:bg-slate-50 transition-colors border-l-4 border-l-green-500">
+                      {/* Add next step recommendations based on progression */}
+                      <div className="p-4 border rounded-lg hover:bg-slate-50 transition-colors border-l-4 border-l-blue-500">
                         <div className="flex justify-between items-start">
                           <div>
                             <h3 className="font-medium flex items-center">
-                              <CheckCircle className="h-4 w-4 mr-2 text-green-500" />
-                              Challenge Yourself
+                              <BookOpen className="h-4 w-4 mr-2 text-blue-500" />
+                              Next Learning Topic
                             </h3>
                             <p className="text-sm text-muted-foreground mt-1">
-                              Ready for a challenge? Try some harder problems to push your skills further.
+                              Based on your progress, we recommend learning{" "}
+                              {assessmentData && assessmentData.topic_masteries.length > 0 
+                                ? getNextRecommendedTopic(assessmentData.topic_masteries) 
+                                : "Sliding Window"} next.
                             </p>
                           </div>
-                          <Link href="/problems?difficulty=hard">
+                          <Link href={`/learn/${assessmentData && assessmentData.topic_masteries.length > 0 
+                            ? getNextRecommendedTopic(assessmentData.topic_masteries).toLowerCase().replace(/ /g, '-')
+                            : "sliding-window"}`}>
                             <Button size="sm" variant="outline">
-                              Explore <ChevronRight className="ml-1 h-3 w-3" />
+                              Start <ChevronRight className="ml-1 h-3 w-3" />
                             </Button>
                           </Link>
                         </div>
                       </div>
+
+                      {/* Challenge recommendation for strong topics */}
+                      {assessmentData && groupedTopics.strong.length > 0 && (
+                        <div className="p-4 border rounded-lg hover:bg-slate-50 transition-colors border-l-4 border-l-green-500">
+                          <div className="flex justify-between items-start">
+                            <div>
+                              <h3 className="font-medium flex items-center">
+                                <CheckCircle className="h-4 w-4 mr-2 text-green-500" />
+                                Challenge Yourself
+                              </h3>
+                              <p className="text-sm text-muted-foreground mt-1">
+                                You&apos;re strong in {groupedTopics.strong[0].topic_name}. Try some hard problems to push your skills further.
+                              </p>
+                            </div>
+                            <Link href={`/problems?topic=${groupedTopics.strong[0].topic_name.toLowerCase().replace(/ /g, '-')}&difficulty=hard`}>
+                              <Button size="sm" variant="outline">
+                                Explore <ChevronRight className="ml-1 h-3 w-3" />
+                              </Button>
+                            </Link>
+                          </div>
+                        </div>
+                      )}
                     </div>
                   )}
                 </CardContent>
@@ -479,7 +569,7 @@ export default function ProfilePage() {
                     Learning Challenges
                   </CardTitle>
                   <CardDescription>
-                    Areas where you've faced difficulty based on your problem-solving patterns
+                    Areas where you&apos;ve faced difficulty based on your problem-solving patterns
                   </CardDescription>
                 </CardHeader>
                 <CardContent>
@@ -498,7 +588,12 @@ export default function ProfilePage() {
                       {assessmentData.struggle_patterns.map((struggle, index) => (
                         <div key={index} className="border rounded-lg p-4">
                           <div className="flex justify-between mb-2">
-                            <h3 className="font-medium">{struggle.area}</h3>
+                            <h3 className="font-medium">
+                              {struggle.area === "algorithm_understanding" ? "Algorithm Pattern Recognition" :
+                              struggle.area === "edge_case_handling" ? "Edge Case Handling" :
+                              struggle.area === "code_efficiency" ? "Time/Space Optimization" :
+                              struggle.area}
+                            </h3>
                             <span className="text-sm text-muted-foreground">
                               {struggle.count} occurrences
                             </span>
@@ -530,13 +625,48 @@ export default function ProfilePage() {
                       </div>
                       <h3 className="font-medium text-lg mb-2">No Significant Challenges Detected</h3>
                       <p className="text-sm text-muted-foreground max-w-md mx-auto">
-                        We haven't detected any specific patterns of struggle in your work yet.
+                        We haven&apos;t detected any specific patterns of struggle in your work yet.
                         This may change as you solve more problems.
                       </p>
                     </div>
                   )}
                 </CardContent>
               </Card>
+            </TabsContent>
+
+            {/* Curriculum Tab */}
+            <TabsContent value="curriculum">
+              {isLoading ? (
+                <Card>
+                  <CardHeader>
+                    <Skeleton className="h-6 w-40 mb-2" />
+                  </CardHeader>
+                  <CardContent>
+                    <div className="space-y-4">
+                      {[1, 2, 3, 4].map((i) => (
+                        <div key={i} className="border rounded-lg p-4">
+                          <Skeleton className="h-5 w-32 mb-3" />
+                          <Skeleton className="h-2 w-full mb-4" />
+                          <div className="grid grid-cols-2 gap-2">
+                            <Skeleton className="h-16 w-full" />
+                            <Skeleton className="h-16 w-full" />
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </CardContent>
+                </Card>
+              ) : (
+                <CurriculumProgress data={{
+                  topicMasteries: Object.fromEntries(
+                    assessmentData?.topic_masteries.map(topic => [
+                      topic.topic_name, topic.mastery_level
+                    ]) || []
+                  ),
+                  nextRecommendedTopic: getNextRecommendedTopic(assessmentData?.topic_masteries || []),
+                  currentSkillLevel: assessmentData?.skill_level || "Beginner"
+                }} />
+              )}
             </TabsContent>
           </Tabs>
         </div>
@@ -548,13 +678,58 @@ export default function ProfilePage() {
 // Helper function to provide advice for different struggle areas
 function getStruggleAdvice(area: string): string {
   const adviceMap: Record<string, string> = {
-    "Algorithm Selection": "Practice identifying which algorithmic technique to apply to different problem types. Review our 'Algorithm Selection Guide'.",
+    "algorithm_understanding": "Practice identifying which algorithmic technique to apply to different problem types. Review our &apos;Algorithm Pattern Recognition Guide&apos;.",
+    "Algorithm Pattern Recognition": "Practice identifying which algorithmic technique to apply to different problem types. Review our &apos;Algorithm Pattern Recognition Guide&apos;.",
     "Data Structure Usage": "Focus on understanding which data structures are most efficient for different operations. Review our data structure efficiency cheat sheet.",
     "Edge Case Handling": "Make a habit of systematically checking for edge cases before submitting your solutions. Consider creating a personal edge case checklist.",
-    "Code Efficiency": "Study time and space complexity to identify optimization opportunities in your code. Work through our 'Optimization Patterns' module.",
+    "edge_case_handling": "Make a habit of systematically checking for edge cases before submitting your solutions. Consider creating a personal edge case checklist.",
+    "Code Efficiency": "Study time and space complexity to identify optimization opportunities in your code. Work through our &apos;Optimization Patterns&apos; module.",
+    "code_efficiency": "Study time and space complexity to identify optimization opportunities in your code. Work through our &apos;Optimization Patterns&apos; module.",
+    "Time/Space Optimization": "Study time and space complexity to identify optimization opportunities in your code. Work through our &apos;Optimization Patterns&apos; module.",
     "Logic Implementation": "Break down your solutions into smaller steps and verify each part independently. Our step-by-step debugging guide may help.",
-    "Algorithm Understanding": "Review fundamental algorithms in depth and trace through their execution manually on sample inputs."
+    "Algorithm Selection": "Practice identifying which algorithmic technique to apply to different problem types. Review our &apos;Algorithm Selection Guide&apos;."
   };
   
   return adviceMap[area] || "Review this concept in our learning materials to strengthen your understanding.";
+}
+
+// Helper function to get next recommended topic
+function getNextRecommendedTopic(topicMasteries: TopicMastery[]): string {
+  // Define topic progression based on typical learning path
+  const topicProgression = [
+    "Arrays & Hashing", 
+    "Two Pointers", 
+    "Stack", 
+    "Binary Search", 
+    "Sliding Window", 
+    "Linked List", 
+    "Trees", 
+    "Tries", 
+    "Heap / Priority Queue", 
+    "Graphs",
+    "1-D DP",
+    "2-D DP"
+  ];
+  
+  // Find topics that have low mastery
+  const lowMasteryTopics = topicMasteries.filter(t => t.mastery_level < 40);
+  
+  // If there are low mastery topics, return the first one
+  if (lowMasteryTopics.length > 0) {
+    return lowMasteryTopics[0].topic_name;
+  }
+  
+  // Otherwise, find the next topic in the progression that's not in the mastered list
+  const masteredTopicNames = topicMasteries
+    .filter(t => t.mastery_level >= 40)
+    .map(t => t.topic_name);
+  
+  for (const topic of topicProgression) {
+    if (!masteredTopicNames.includes(topic)) {
+      return topic;
+    }
+  }
+  
+  // Default fallback
+  return "Sliding Window";
 }

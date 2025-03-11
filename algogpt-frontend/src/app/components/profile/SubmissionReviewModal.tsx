@@ -3,6 +3,15 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "
 import { Button } from "@/components/ui/button";
 import { CheckCircle, XCircle, AlertTriangle } from "lucide-react";
 
+// Define a type for JSON-serializable values
+type JsonValue = 
+  | string
+  | number
+  | boolean
+  | null
+  | JsonValue[]
+  | { [key: string]: JsonValue };
+
 interface SubmissionReviewProps {
   review: {
     status: string;
@@ -10,9 +19,9 @@ interface SubmissionReviewProps {
     passed_tests: number;
     total_tests: number;
     failing_test?: {
-      input: any;
-      expected_output: any;
-      output: any;
+      input: JsonValue;
+      expected_output: JsonValue;
+      output: JsonValue;
       error_message?: string;
     };
   };
@@ -88,7 +97,7 @@ const SubmissionReviewModal: React.FC<SubmissionReviewProps> = ({ review, onCont
           
           {isAccepted && (
             <div className="mt-4 bg-green-50 text-green-800 p-3 rounded-md">
-              <p>Great job! Your solution passed all test cases. Now we'll move on to the next problem.</p>
+              <p>Great job! Your solution passed all test cases. Now we&apos;ll move on to the next problem.</p>
             </div>
           )}
         </div>

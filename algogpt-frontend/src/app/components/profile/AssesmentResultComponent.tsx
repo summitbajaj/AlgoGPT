@@ -65,6 +65,33 @@ const AssessmentResults: React.FC<AssessmentResultsProps> = ({ assessmentResult 
     router.push('/problems');
   };
   
+  // Helper to map generic struggle areas to more specific DSA context
+  const getFormattedAreaName = (area: string) => {
+    switch(area) {
+      case "algorithm_understanding": return "Algorithm Pattern Recognition";
+      case "edge_case_handling": return "Edge Case Handling";
+      case "code_efficiency": return "Time/Space Optimization";
+      case "data_structure_choice": return "Data Structure Selection";
+      default: return area;
+    }
+  };
+  
+  // Helper to get specific advice based on struggle area
+  const getAreaAdvice = (area: string) => {
+    switch(area) {
+      case "algorithm_understanding":
+        return "Focus on understanding when to apply different algorithm patterns like sliding window, two pointers, etc.";
+      case "edge_case_handling":
+        return "Practice identifying common edge cases like empty arrays, single elements, or boundary values.";
+      case "code_efficiency":
+        return "Work on optimizing solutions to reduce time and space complexity.";
+      case "data_structure_choice":
+        return "Study which data structures are most efficient for different operations.";
+      default:
+        return "Practice this skill to improve your problem-solving abilities.";
+    }
+  };
+  
   return (
     <div className="container mx-auto py-8 px-4">
       <div className="max-w-4xl mx-auto bg-white rounded-lg shadow-lg overflow-hidden">
@@ -192,10 +219,13 @@ const AssessmentResults: React.FC<AssessmentResultsProps> = ({ assessmentResult 
                       {assessmentResult.struggle_areas.slice(0, 4).map((struggle) => (
                         <div key={struggle.area} className="p-3 border rounded-lg">
                           <div className="flex justify-between items-center mb-2">
-                            <span className="font-medium">{struggle.area}</span>
+                            <span className="font-medium">{getFormattedAreaName(struggle.area)}</span>
                             <span className="text-sm text-muted-foreground">{struggle.count} times</span>
                           </div>
                           <Progress value={Math.min(100, struggle.count * 20)} className="h-1"/>
+                          <p className="text-xs text-muted-foreground mt-2">
+                            {getAreaAdvice(struggle.area)}
+                          </p>
                         </div>
                       ))}
                     </div>

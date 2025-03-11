@@ -43,9 +43,10 @@ export const PythonEditorComponent: React.FC<PythonEditorProps> = ({
   const editorRootRef = useRef<ReactDOM.Root | null>(null);
   const wrapperRef = useRef<MonacoEditorLanguageClientWrapper | null>(null);
   
-  // Only use WebSocket context if not disabled
-  const webSocketContext = !disableWebSocket ? useWebSocket() : { sendCodeUpdate: () => {} };
-  const { sendCodeUpdate } = webSocketContext;
+  // Always call the hook unconditionally
+  const webSocketContext = useWebSocket();
+  // Then conditionally use its result
+  const sendCodeUpdate = disableWebSocket ? () => {} : webSocketContext.sendCodeUpdate;
   
   // Create refs outside of effects for the submit button and its handler
   const submitButtonRef = useRef<HTMLElement | null>(null);

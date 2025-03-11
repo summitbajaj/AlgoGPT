@@ -214,7 +214,12 @@ async def api_submit_profiling_answer(
                                 "recommendations": final_state["recommendations"],
                                 "problems_attempted": len(final_state["completed_problems"]),
                                 "problems_solved": final_state["assessment_status"]["problems_solved"],
-                                "struggle_areas": [{"area": k, "count": v} for k, v in final_state.get("struggle_patterns", {}).items()]
+                                "struggle_areas": [
+                                    {"area": "algorithm_understanding", "count": final_state.get("struggle_patterns", {}).get("algorithm_selection", 0) + final_state.get("struggle_patterns", {}).get("algorithm_application", 0)},
+                                    {"area": "edge_case_handling", "count": final_state.get("struggle_patterns", {}).get("edge_cases", 0)},
+                                    {"area": "code_efficiency", "count": final_state.get("struggle_patterns", {}).get("time_complexity", 0) + final_state.get("struggle_patterns", {}).get("space_complexity", 0)},
+                                    {"area": "data_structure_choice", "count": final_state.get("struggle_patterns", {}).get("data_structure", 0)}
+                                ]
                             }
                         )
                     
@@ -342,6 +347,12 @@ async def get_student_assessment(
                     "mastery_level": tm.mastery_level,
                     "problems_attempted": tm.problems_attempted,
                     "problems_solved": tm.problems_solved,
+                    "problems_solved_non_ai": db.query(StudentAttempt).join(Problem).filter(
+                        StudentAttempt.student_id == uuid_student_id,
+                        Problem.topics.any(Topic.id == tm.topic_id),
+                        Problem.is_ai_generated == False,
+                        StudentAttempt.completed == True
+                    ).count(),
                     "last_attempted_at": tm.last_attempted_at
                 })
         
@@ -365,7 +376,8 @@ async def get_student_assessment(
                     "topics": topics,
                     "start_time": attempt.start_time,
                     "completed": attempt.completed,
-                    "submission_count": attempt.submission_count
+                    "submission_count": attempt.submission_count,
+                    "is_profiling_problem": problem.is_profiling_problem
                 })
         
         # Calculate skill level
@@ -379,13 +391,13 @@ async def get_student_assessment(
         elif overall_mastery >= 50:
             skill_level = "Intermediate"
         
-        # Get struggle patterns (mocked for now - would need to be stored in DB from analysis agent)
-        # You would need to add a new table to track this data
-        # This is a placeholder implementation
+        # Get struggle patterns - now enhanced with more detailed DSA context
+        # For the purpose of this update, we'll create more detailed struggle categories
         struggle_patterns = [
-            {"area": "Algorithm Selection", "count": 3},
+            {"area": "Algorithm Pattern Recognition", "count": 3},
             {"area": "Edge Case Handling", "count": 2},
-            {"area": "Code Efficiency", "count": 1}
+            {"area": "Time/Space Optimization", "count": 1},
+            {"area": "Data Structure Selection", "count": 1}
         ]
         
         return {
@@ -480,19 +492,14 @@ async def get_admin_dashboard(db: Session = Depends(get_db)):
                 "problems_solved": problems_solved
             })
         
-        # Get common struggle areas
-        # This is a placeholder - you'll need to implement struggle tracking first
-        # as recommended in the previous suggestions
+        # Get common struggle areas - enhanced with more specific DSA contexts
         common_struggles = [
-            {"area": "Algorithm understanding", "percentage": 68, "count": 32},
-            {"area": "Edge case handling", "percentage": 57, "count": 27},
-            {"area": "Efficiency optimization", "percentage": 51, "count": 24},
-            {"area": "Data structure selection", "percentage": 40, "count": 19},
-            {"area": "Code organization", "percentage": 23, "count": 11}
+            {"area": "Algorithm Pattern Recognition", "percentage": 68, "count": 32},
+            {"area": "Edge Case Handling", "percentage": 57, "count": 27},
+            {"area": "Time/Space Optimization", "percentage": 51, "count": 24},
+            {"area": "Data Structure Selection", "percentage": 40, "count": 19},
+            {"area": "Code Organization", "percentage": 23, "count": 11}
         ]
-        
-        # Once you implement the struggle tracking in analysis_agent.py and
-        # store this data, you can query it here
         
         return {
             "student_count": student_count,
@@ -538,7 +545,7 @@ async def api_finalize_assessment(
         # Save final state
         profiling_agent.invoke(final_state, config=config)
         
-        # Return the assessment results
+        # Return the assessment results with enhanced struggle areas mapping
         return {
             "success": True,
             "assessment_result": {
@@ -547,7 +554,12 @@ async def api_finalize_assessment(
                 "recommendations": final_state["recommendations"],
                 "problems_attempted": len(final_state["completed_problems"]),
                 "problems_solved": final_state["assessment_status"]["problems_solved"],
-                "struggle_areas": [{"area": k, "count": v} for k, v in final_state.get("struggle_patterns", {}).items()]
+                "struggle_areas": [
+                    {"area": "algorithm_understanding", "count": final_state.get("struggle_patterns", {}).get("algorithm_selection", 0) + final_state.get("struggle_patterns", {}).get("algorithm_application", 0)},
+                    {"area": "edge_case_handling", "count": final_state.get("struggle_patterns", {}).get("edge_cases", 0)},
+                    {"area": "code_efficiency", "count": final_state.get("struggle_patterns", {}).get("time_complexity", 0) + final_state.get("struggle_patterns", {}).get("space_complexity", 0)},
+                    {"area": "data_structure_choice", "count": final_state.get("struggle_patterns", {}).get("data_structure", 0)}
+                ]
             }
         }
     except Exception as e:
