@@ -72,7 +72,7 @@ export default function ProfilePage() {
       setIsLoading(true);
       try {
         // Replace with your actual API endpoint and student ID
-        const userId = "user123"; // This should come from your auth system
+        const userId = "user129"; // This should come from your auth system
         const response = await fetch(`http://localhost:8000/api/profiling/student/${userId}/assessment`);        
         if (response.ok) {
           const data = await response.json();

@@ -52,11 +52,11 @@ def get_db():
 register_profiling_api(app)
 
 # -------------------------------
-# 1️⃣ Fetch all problems
+# 1️⃣ Fetch all problems that are not ai generated
 # -------------------------------
 @app.get("/problems")
 def list_problems(db: Session = Depends(get_db)):
-    problems = db.query(Problem).all()
+    problems = db.query(Problem).filter(Problem.is_ai_generated == False).all()
     return [
         {
             "id": p.id,
