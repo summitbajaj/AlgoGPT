@@ -10,7 +10,7 @@ import traceback
 from dotenv import load_dotenv
 from database.database import SessionLocal
 from database.models import StudentProfile, StudentTopicMastery, Topic, StudentAttempt, Problem
-from sqlalchemy.orm import Session
+from sqlalchemy import func 
 from datetime import datetime
 
 # Load environment variables
@@ -119,23 +119,16 @@ def initialize_profiling(state: ProfilingState) -> ProfilingState:
 
 def select_next_topic(state: ProfilingState) -> ProfilingState:
     """
-    Determine the next topic to assess based on current state.
-    Uses topic progression map and previous assessment results.
+    Enhanced topic selection with better rotation logic
     """
-    
-    # Check if we've reached maximum problems limit
-    MAX_QUESTIONS = 12  # Adjust as needed
-    
+    # Check for max questions limit
+    MAX_QUESTIONS = 12
     total_problems_attempted = len(state["completed_problems"])
     
-    # Check if we've reached the maximum questions
     if total_problems_attempted >= MAX_QUESTIONS:
-        return {
-            **state, 
-            "current_phase": "finalizing"
-        }
+        return {**state, "current_phase": "finalizing"}
     
-    # Check if we've reached time limit (30 minutes)
+    # Check time limit
     current_time = datetime.utcnow()
     session_start_time = state.get("session_start_time", current_time)
     session_duration = (current_time - session_start_time).total_seconds() / 60
@@ -145,91 +138,101 @@ def select_next_topic(state: ProfilingState) -> ProfilingState:
     
     db = SessionLocal()
     try:
-        # If we're just starting, select the initial topic (Arrays)
+        # Handle initialization phase
         if state["current_phase"] == "initializing":
-            
-            # Start with Arrays (assuming it has ID 1 - adjust as needed)
+            # Start with Arrays
             arrays_topic = db.query(Topic).filter(Topic.name == "Arrays").first()
             if not arrays_topic:
-                # Fallback to first topic in database
                 arrays_topic = db.query(Topic).first()
             
             if not arrays_topic:
-                return {
-                    **state,
-                    "errors": ["No topics found in database"]
-                }
+                return {**state, "errors": ["No topics found in database"]}
             
-            result = {
+            return {
                 **state,
                 "current_phase": "assessing",
                 "assessment_status": {
                     **state["assessment_status"],
                     "current_topic_id": arrays_topic.id,
                     "current_topic_name": arrays_topic.name,
-                    "current_difficulty": "Easy",  # Start with easy problems
+                    "current_difficulty": "Easy",
                     "problems_presented": 0
                 }
             }
-            return result
         
-        # If we're in assessment phase, determine next topic based on performance
+        # Assessment phase logic with enhanced topic rotation
         if state["current_phase"] == "assessing":
             current_topic_id = state["assessment_status"].get("current_topic_id")
             problems_presented = state["assessment_status"].get("problems_presented", 0)
             problems_solved = state["assessment_status"].get("problems_solved", 0)
             
-            # Check if we've assessed enough problems for the current topic
-            if problems_presented >= 3:  # Assess 3 problems per topic
-                # Calculate mastery level for current topic
-                mastery_level = (problems_solved / problems_presented) * 100
-                
-                # Update topic assessments
-                state["topic_assessments"][str(current_topic_id)] = mastery_level
-                
-                # Determine next topic based on performance
-                # Query the topic progression map
+            # Count problems per topic
+            topic_problems = {}
+            for problem in state["completed_problems"]:
+                topic_id = problem["topic_id"]
+                topic_problems[topic_id] = topic_problems.get(topic_id, 0) + 1
+            
+            # Force topic change conditions:
+            # 1. If we've done 3+ problems in this topic
+            # 2. If we've done 2+ problems AND solved at least 1
+            current_topic_count = topic_problems.get(current_topic_id, 0)
+            current_topic_solved = sum(1 for p in state["completed_problems"] 
+                                     if p["topic_id"] == current_topic_id and 
+                                        p["status"].lower() == "accepted")
+            
+            should_change_topic = (current_topic_count >= 3) or (current_topic_count >= 2 and current_topic_solved >= 1)
+            
+            if should_change_topic:
+                # Get next topic using progression map
                 current_topic = db.query(Topic).filter(Topic.id == current_topic_id).first()
                 
-                # Simple logic: If mastery level is high, move to a more advanced topic
-                if mastery_level >= 70:
-                    # Find the next topic based on progression
-                    # For now, using a simple mapping based on NeetCode structure
-                    topic_progression = {
-                        "Arrays": "Two Pointers",
-                        "Two Pointers": "Binary Search",
-                        "Binary Search": "Trees",
-                        "Trees": "Heap / Priority Queue",
-                        "Heap / Priority Queue": "Graphs",
-                        "Graphs": "1D Dynamic Programming",
-                        "1D Dynamic Programming": "2D Dynamic Programming",
-                        "2D Dynamic Programming": "Math & Geometry"
-                    }
-                    
-                    next_topic_name = topic_progression.get(current_topic.name)
-                    if next_topic_name:
-                        next_topic = db.query(Topic).filter(Topic.name == next_topic_name).first()
-                        if next_topic:
-                            return {
-                                **state,
-                                "assessment_status": {
-                                    **state["assessment_status"],
-                                    "current_topic_id": next_topic.id,
-                                    "current_topic_name": next_topic.name,
-                                    "current_difficulty": "Easy",  # Reset difficulty for new topic
-                                    "problems_presented": 0,
-                                    "problems_solved": 0
-                                }
-                            }
-                
-                # If we couldn't find a next topic or mastery is low, 
-                # we're done with assessment
-                return {
-                    **state, 
-                    "current_phase": "finalizing"
+                # Defined progression path
+                topic_progression = {
+                    "Arrays": "Two Pointers",
+                    "Two Pointers": "Binary Search",
+                    "Binary Search": "Trees",
+                    "Trees": "Heap / Priority Queue",
+                    "Heap / Priority Queue": "Graphs",
+                    "Graphs": "1D Dynamic Programming",
+                    "1D Dynamic Programming": "2D Dynamic Programming",
+                    "2D Dynamic Programming": "Math & Geometry"
                 }
+                
+                # Try to get next topic from progression map
+                next_topic_name = topic_progression.get(current_topic.name)
+                next_topic = None
+                
+                if next_topic_name:
+                    next_topic = db.query(Topic).filter(Topic.name == next_topic_name).first()
+                
+                # If we couldn't find the next topic or if we've already covered many topics,
+                # check if there's a topic we haven't assessed yet
+                if not next_topic or len(topic_problems) >= 4:
+                    assessed_topic_ids = list(topic_problems.keys())
+                    next_topic = db.query(Topic).filter(~Topic.id.in_(assessed_topic_ids)).first()
+                
+                # If we still don't have a next topic, just pick a random one 
+                # (excluding the current one)
+                if not next_topic:
+                    next_topic = db.query(Topic).filter(Topic.id != current_topic_id).order_by(func.random()).first()
+                
+                if next_topic:
+                    return {
+                        **state,
+                        "assessment_status": {
+                            **state["assessment_status"],
+                            "current_topic_id": next_topic.id,
+                            "current_topic_name": next_topic.name,
+                            "current_difficulty": "Easy",  # Reset difficulty for new topic
+                            "problems_presented": 0,
+                            "problems_solved": 0
+                        }
+                    }
+                else:
+                    # If we somehow couldn't find any topic, finalize
+                    return {**state, "current_phase": "finalizing"}
             
-            # Continue with current topic but adjust difficulty
+            # Adjust difficulty within the current topic
             current_difficulty = state["assessment_status"]["current_difficulty"]
             if problems_solved == 0 and problems_presented >= 1:
                 # Student is struggling, make it easier
@@ -246,21 +249,17 @@ def select_next_topic(state: ProfilingState) -> ProfilingState:
                 # Keep same difficulty
                 new_difficulty = current_difficulty
             
-            result = {
+            return {
                 **state,
                 "assessment_status": {
                     **state["assessment_status"],
                     "current_difficulty": new_difficulty
                 }
             }
-            return result
         
         return state
     except Exception as e:
-        return {
-            **state,
-            "errors": [f"Error selecting next topic: {str(e)}"]
-        }
+        return {**state, "errors": [f"Error selecting next topic: {str(e)}"]}
     finally:
         db.close()
 
@@ -310,10 +309,17 @@ def update_with_problem(state: ProfilingState, problem_data: Dict[str, Any]) -> 
     if not problem_id:
         problem_id = problem_data.get('id')
     
+    # Log the extracted problem ID
+    print(f"Extracted problem_id: {problem_id}, from data with keys: {list(problem_data.keys())}")
+    
+    # Clean up the title - remove any leading dots or extra spacing
+    title = problem_data.get('title', '')
+    clean_title = title.lstrip('. ')  # Remove any leading dots and spaces
+    
     # Normalize problem structure to ensure consistent access
     normalized_problem = {
         "problem_id": problem_id,
-        "title": problem_data.get('title', ''),
+        "title": clean_title,
         "description": problem_data.get('description', ''),
         "difficulty": problem_data.get('difficulty', ''),
         "constraints": problem_data.get('constraints', ''),
@@ -322,8 +328,15 @@ def update_with_problem(state: ProfilingState, problem_data: Dict[str, Any]) -> 
         "examples": problem_data.get('examples', [])
     }
     
+    # Make sure problem_id is included even if we couldn't extract it
+    if not normalized_problem["problem_id"] and 'id' in problem_data:
+        normalized_problem["problem_id"] = problem_data['id']
+    
     # Increment problems presented count
     problems_presented = state["assessment_status"]["problems_presented"] + 1
+    
+    # Log the normalized problem structure
+    print(f"Normalized problem structure: problem_id={normalized_problem['problem_id']}, title={normalized_problem['title']}")
     
     result = {
         **state,
@@ -727,14 +740,7 @@ def start_profiling_session(student_id: str):
 # Function to process a submission and get the next problem
 def process_submission_and_continue(session_id: str, submission_result: Dict[str, Any]):
     """
-    Process a student's submission and get the next problem.
-    
-    Args:
-        session_id: ID of the profiling session
-        submission_result: Result of the student's submission
-        
-    Returns:
-        Next problem or final assessment
+    Process a student's submission and get the next problem with enhanced diversity.
     """
     # Configure thread for this session
     config = {"configurable": {"thread_id": session_id}}
@@ -751,90 +757,60 @@ def process_submission_and_continue(session_id: str, submission_result: Dict[str
     # Get current state
     current_state = current_checkpoint.get("channel_values", {})
     
-    # If current_problem is missing, try to reconstruct it
-    if current_state.get("current_problem") is None:
-        problem_id = submission_result.get("problem_id")
-        if problem_id:
-            try:
-                # Fetch problem from database
-                db = SessionLocal()
-                problem = db.query(Problem).filter(Problem.id == problem_id).first()
-                
-                if problem:
-                    # Create problem data structure
-                    current_state["current_problem"] = {
-                        "problem_id": problem.id,
-                        "title": problem.title,
-                        "description": problem.description,
-                        "difficulty": problem.difficulty.value if hasattr(problem.difficulty, 'value') else problem.difficulty,
-                        "constraints": problem.constraints,
-                        "starter_code": problem.starter_code,
-                        "function_name": problem.function_name
-                    }
-                db.close()
-            except Exception as e:
-                pass
+    # Make sure submission_result has problem_id
+    if "problem_id" not in submission_result and "id" in submission_result:
+        submission_result["problem_id"] = submission_result["id"]
+        print(f"Added problem_id to submission_result: {submission_result['problem_id']}")
     
-    # Process submission using the agent's process_submission node
-    try:
-        # Use direct function call for more control over the process
-        updated_state = process_submission_result(current_state, submission_result)
-        
-        # Check if process_submission_result added any errors
-        if len(updated_state.get("errors", [])) > len(current_state.get("errors", [])):
-            return {
-                "status": "error",
-                "errors": updated_state.get("errors", ["Unknown error during submission processing"])
-            }
-        
-        # Continue profiling by selecting next topic
-        next_state = select_next_topic(updated_state)
-        
-        # Save updated state
-        profiling_agent.invoke(next_state, config=config)
-        
-        # Check if we've completed the assessment
-        if next_state.get("current_phase") == "finalizing":
-            # Run finalize step
-            final_state = finalize_profiling(next_state)
-            # Save final state
-            profiling_agent.invoke(final_state, config=config)
-            
-            return {
-                "status": "completed",
-                "assessment": {
-                    "skill_level": final_state["assessment_status"]["estimated_skill_level"],
-                    "topic_assessments": final_state["topic_assessments"],
-                    "recommendations": final_state["recommendations"],
-                    "problems_attempted": len(final_state["completed_problems"]),
-                    "problems_solved": final_state["assessment_status"]["problems_solved"],
-                    "struggle_areas": [{"area": k, "count": v} for k, v in final_state.get("struggle_patterns", {}).items()]
-                }
-            }
-        
-        # Request next problem
-        problem_request_state = request_problem(next_state)
-        
-        # Save state with problem request
-        profiling_agent.invoke(problem_request_state, config=config)
-        
-        # Return the next problem request
-        if "question_selection_request" in problem_request_state:
-            return {
-                "status": "in_progress",
-                "question_selection_request": problem_request_state["question_selection_request"]
-            }
-        
-        # If we get here, something went wrong
+    # Process submission using the direct function
+    updated_state = process_submission_result(current_state, submission_result)
+    
+    # Check for processing errors
+    if len(updated_state.get("errors", [])) > len(current_state.get("errors", [])):
         return {
             "status": "error",
-            "errors": ["Failed to generate next question request"]
+            "errors": updated_state.get("errors", ["Unknown error during submission processing"])
         }
+    
+    # Continue profiling by selecting next topic
+    next_state = select_next_topic(updated_state)
+    
+    # Save updated state
+    profiling_agent.invoke(next_state, config=config)
+    
+    # Check if assessment is complete
+    if next_state.get("current_phase") == "finalizing":
+        # Finalize assessment
+        final_state = finalize_profiling(next_state)
+        profiling_agent.invoke(final_state, config=config)
         
-    except Exception as e:
         return {
-            "status": "error",
-            "errors": [f"Error processing submission: {str(e)}"]
+            "status": "completed",
+            "assessment": {
+                "skill_level": final_state["assessment_status"]["estimated_skill_level"],
+                "topic_assessments": final_state["topic_assessments"],
+                "recommendations": final_state["recommendations"],
+                "problems_attempted": len(final_state["completed_problems"]),
+                "problems_solved": final_state["assessment_status"]["problems_solved"],
+                "struggle_areas": [{"area": k, "count": v} for k, v in final_state.get("struggle_patterns", {}).items()]
+            }
         }
-    finally:
-        db.close()
+    
+    # Request next problem with high diversity
+    problem_request_state = request_problem(next_state)
+    profiling_agent.invoke(problem_request_state, config=config)
+    
+    if "question_selection_request" in problem_request_state:
+        # Add flag to avoid similar content
+        question_request = problem_request_state["question_selection_request"]
+        question_request["avoid_similar_content"] = True
+        
+        return {
+            "status": "in_progress",
+            "question_selection_request": question_request
+        }
+    
+    return {
+        "status": "error",
+        "errors": ["Failed to generate next question request"]
+    }

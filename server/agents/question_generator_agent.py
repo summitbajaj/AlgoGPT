@@ -43,12 +43,13 @@ class QuestionGeneratorState(TypedDict):
     topic_name: str
     difficulty: str
     existing_problem_id: Optional[int]  # Optional existing problem to use as inspiration
+    diversity_factor: Optional[float]   # Add this field
     generated_problem: Optional[Dict[str, Any]]
     validation_result: Optional[Dict[str, bool]]
     stored_problem_id: Optional[int]
     error: Optional[str]
 
-def generate_problem_prompt(topic_name: str, difficulty: str, existing_problem: Optional[Dict[str, Any]] = None):
+def generate_problem_prompt(topic_name: str, difficulty: str, existing_problem: Optional[Dict[str, Any]] = None, diversity_factor: float = 0.5):
     """Create the prompt for generating a new problem"""
     
     # Base system prompt
@@ -114,6 +115,22 @@ def generate_problem_prompt(topic_name: str, difficulty: str, existing_problem: 
         ```
 
         Do not include any text outside of the JSON object.
+        """
+
+    # Modify the prompt based on diversity factor
+    if diversity_factor > 0.7:
+        system_prompt += f"""
+        You MUST create a problem that is SUBSTANTIALLY DIFFERENT from any typical {topic_name} problem.
+        Use unusual scenarios, rare algorithmic approaches, or creative twists on standard problems.
+        Focus on:
+        - Using novel problem scenarios not commonly seen in coding problems
+        - Requiring a different algorithmic approach than standard {topic_name} problems
+        - Embedding the core concept in an unexpected application
+        """
+    elif diversity_factor > 0.4:
+        system_prompt += f"""
+        Try to create a problem that approaches {topic_name} from a somewhat different angle than standard problems.
+        Consider using slightly unusual scenarios or alternative applications of core concepts.
         """
 
     # If we have an existing problem, add it as inspiration
@@ -208,7 +225,7 @@ def _fix_input_format(input_str):
         # If anything goes wrong, return None to indicate failure
         return None
 
-def store_problem_in_db(db: Session, problem_data: Dict[str, Any], topic_id: int) -> int:
+def store_problem_in_db(db: Session, problem_data: Dict[str, Any], topic_id: int) -> tuple[int, List[str]]:
     """Store the generated problem and its test cases in the database"""
     try:
         # Extract difficulty from string to enum
@@ -232,9 +249,11 @@ def store_problem_in_db(db: Session, problem_data: Dict[str, Any], topic_id: int
         )
         
         # Add topic relationship
+        topic_names = []
         topic = db.query(Topic).filter(Topic.id == topic_id).first()
         if topic:
             new_problem.topics.append(topic)
+            topic_names.append(topic.name)
         
         db.add(new_problem)
         db.flush()  # Get the new problem ID
@@ -264,7 +283,7 @@ def store_problem_in_db(db: Session, problem_data: Dict[str, Any], topic_id: int
         # Commit changes
         db.commit()
         
-        return new_problem.id
+        return new_problem.id, topic_names
     except Exception as e:
         db.rollback()
         logger.error(f"Error storing problem: {e}")
@@ -344,6 +363,7 @@ def generate_problem(state: QuestionGeneratorState):
     
     topic_name = state["topic_name"]
     difficulty = state["difficulty"]
+    diversity_factor = state.get("diversity_factor", 0.5)  # Get the diversity factor
     existing_problem = None
     
     # If we have an existing problem ID for inspiration, get its details
@@ -360,7 +380,7 @@ def generate_problem(state: QuestionGeneratorState):
             db.close()
     
     # Generate the prompt
-    system_prompt, human_prompt = generate_problem_prompt(topic_name, difficulty, existing_problem)
+    system_prompt, human_prompt = generate_problem_prompt(topic_name, difficulty, existing_problem, diversity_factor)
     
     try:
         # Call the LLM to generate the problem
@@ -369,7 +389,9 @@ def generate_problem(state: QuestionGeneratorState):
             HumanMessage(content=human_prompt)
         ]
         
-        response = chat_model(messages)
+        # Adjust temperature based on diversity factor
+        adjusted_temperature = 0.2 + (diversity_factor * 0.6)  # Maps 0->0.2 and 1->0.8
+        response = chat_model(messages, temperature=adjusted_temperature)
         
         # Extract the JSON from the response
         json_match = re.search(r'```json\s*(.*?)\s*```', response.content, re.DOTALL)
@@ -442,7 +464,7 @@ def store_problem(state: QuestionGeneratorState):
     try:
         db = SessionLocal()
         try:
-            problem_id = store_problem_in_db(
+            problem_id, topic_list = store_problem_in_db(
                 db, 
                 state["generated_problem"], 
                 state["topic_id"]
@@ -457,9 +479,18 @@ def store_problem(state: QuestionGeneratorState):
                 # Don't fail the entire process if embedding creation fails
                 print(f"Error creating embedding: {str(embed_error)}")
             
+            # Add problem_id to the generated_problem
+            updated_problem = {
+                **state["generated_problem"],
+                "problem_id": problem_id,
+                "id": problem_id,  # For backward compatibility
+                "topics": topic_list
+            }
+            
             return {
                 **state,
-                "stored_problem_id": problem_id
+                "stored_problem_id": problem_id,
+                "generated_problem": updated_problem
             }
         finally:
             db.close()
@@ -468,6 +499,7 @@ def store_problem(state: QuestionGeneratorState):
             **state,
             "error": f"Failed to store problem: {str(e)}"
         }
+
 # Create the LangGraph for the Question Generator Agent
 def create_question_generator_graph():
     """Create and return the Question Generator agent graph"""
@@ -497,24 +529,18 @@ question_generator_graph = create_question_generator_graph()
 def generate_new_problem(
     topic_id: int, 
     difficulty: str = "Easy", 
-    existing_problem_id: Optional[int] = None
+    existing_problem_id: Optional[int] = None,
+    diversity_factor: float = 0.5
 ) -> Dict[str, Any]:
     """
-    Generate a new problem based on topic and difficulty
-    
-    Args:
-        topic_id: ID of the topic to generate a problem for
-        difficulty: Difficulty level ("Easy", "Medium", or "Hard")
-        existing_problem_id: Optional ID of an existing problem to use as inspiration
-        
-    Returns:
-        Dictionary with the generated problem data
+    Generate a new problem based on topic/difficulty, store it, return final data.
     """
-    # Initialize state
+    # 1) Initialize state
     initial_state = {
         "topic_id": topic_id,
         "difficulty": difficulty,
         "existing_problem_id": existing_problem_id,
+        "diversity_factor": diversity_factor,
         "topic_name": "",
         "generated_problem": None,
         "validation_result": None,
@@ -522,22 +548,25 @@ def generate_new_problem(
         "error": None
     }
     
-    # Configure the thread ID for this generation
+    # 2) Run the question_generator_graph
     config = {"configurable": {"thread_id": f"problem_generation_{uuid.uuid4()}"}}
-    
-    # Run the graph
     result = question_generator_graph.invoke(initial_state, config=config)
     
-    # Check for errors
+    # 3) Check errors
     if result.get("error"):
         return {
             "success": False,
             "error": result["error"]
         }
     
-    # Return result
+    # 4) Return final data from the pipeline
+    # By now, result["generated_problem"] already includes "topics"
     return {
         "success": True,
         "problem_id": result["stored_problem_id"],
-        "problem_data": result["generated_problem"]
+        "problem_data": {
+            **result["generated_problem"],
+            "problem_id": result["stored_problem_id"],
+            "id": result["stored_problem_id"]   # for backward compatibility
+        }
     }

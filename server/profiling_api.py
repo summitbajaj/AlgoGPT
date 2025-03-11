@@ -73,12 +73,15 @@ async def api_start_profiling(
     db: Session = Depends(get_db)
 ):
     try:
+        print(f"Starting profiling session for student_id: {request.student_id}")
         # Start profiling session
         session_id, result = start_profiling_session(request.student_id)
+        print(f"Profiling session started with session_id: {session_id}, result: {result}")
         
         # Get question selection request from result
         question_request = result.get("question_selection_request")
         if not question_request:
+            print("Failed to initialize profiling session: No question_selection_request found")
             raise HTTPException(status_code=500, detail="Failed to initialize profiling session")
         
         # Select the first problem
@@ -90,11 +93,14 @@ async def api_start_profiling(
             student_id=request.student_id,
             force_generation=True  # Force generation for the first problem
         )
+        print(f"Problem selection result: {problem_result}")
         
         if not problem_result.get("success", False):
+            error_detail = f"Failed to select problem: {problem_result.get('errors', ['Unknown error'])}"
+            print(error_detail)
             raise HTTPException(
                 status_code=500, 
-                detail=f"Failed to select problem: {problem_result.get('errors', ['Unknown error'])}"
+                detail=error_detail
             )
         
         # CRITICAL: Update the agent state with the selected problem
@@ -106,22 +112,25 @@ async def api_start_profiling(
             current_checkpoint = profiling_agent.checkpointer.get(config)
             if current_checkpoint:
                 current_state = current_checkpoint.get("channel_values", {})
+                print(f"Current checkpoint state: {current_state}")
                 
                 # Update with the selected problem
                 updated_state = update_with_problem(current_state, problem_result["problem"])
+                print(f"Updated state with problem: {updated_state}")
                 
                 # Save the updated state back to the agent
                 profiling_agent.invoke(updated_state, config=config)
             else:
-                pass
+                print("No current checkpoint found")
         except Exception as e:
-            pass
+            print(f"Error updating agent state: {e}")
         
         return StartProfilingResponse(
             session_id=session_id,
             problem=problem_result["problem"]
         )
     except Exception as e:
+        print(f"Exception in /start-profiling: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
 # Endpoint to submit an answer during profiling
@@ -487,3 +496,49 @@ async def get_admin_dashboard(db: Session = Depends(get_db)):
 # Function to register the router with the main app
 def register_profiling_api(app):
     app.include_router(profiling_router, prefix="/api/profiling", tags=["profiling"])
+
+
+# Add this to profiling_api.py
+
+@profiling_router.post("/finalize-assessment")
+async def api_finalize_assessment(
+    session_id: str,
+    db: Session = Depends(get_db)
+):
+    """Manually finalize an assessment that's reached the question limit"""
+    try:
+        # Get profiling state from agent memory
+        from agents.profiling_agent import profiling_agent, finalize_profiling
+        config = {"configurable": {"thread_id": session_id}}
+        
+        # Retrieve current checkpoint
+        current_checkpoint = profiling_agent.checkpointer.get(config)
+        if not current_checkpoint:
+            raise HTTPException(status_code=404, detail=f"No active session found with ID {session_id}")
+        
+        # Get current state
+        current_state = current_checkpoint.get("channel_values", {})
+        
+        # Force finalize
+        current_state["current_phase"] = "finalizing"
+        
+        # Run finalize step
+        final_state = finalize_profiling(current_state)
+        
+        # Save final state
+        profiling_agent.invoke(final_state, config=config)
+        
+        # Return the assessment results
+        return {
+            "success": True,
+            "assessment_result": {
+                "skill_level": final_state["assessment_status"]["estimated_skill_level"],
+                "topic_assessments": final_state["topic_assessments"],
+                "recommendations": final_state["recommendations"],
+                "problems_attempted": len(final_state["completed_problems"]),
+                "problems_solved": final_state["assessment_status"]["problems_solved"],
+                "struggle_areas": [{"area": k, "count": v} for k, v in final_state.get("struggle_patterns", {}).items()]
+            }
+        }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))

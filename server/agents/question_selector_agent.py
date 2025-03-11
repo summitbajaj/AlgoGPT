@@ -15,22 +15,11 @@ def select_problem(
     avoided_problem_ids: List[int] = None,
     is_profiling: bool = False,
     student_id: str = None,
-    force_generation: bool = False
+    force_generation: bool = False,
+    avoid_similar_content: bool = True  # New parameter
 ) -> Dict[str, Any]:
     """
-    Hybrid problem selection - uses vector embeddings to find similar problems
-    or generates new ones when needed.
-    
-    Args:
-        topic_id: ID of the topic
-        difficulty: Difficulty level ("Easy", "Medium", or "Hard")
-        avoided_problem_ids: IDs of problems to avoid
-        is_profiling: Whether this is for profiling or regular practice
-        student_id: ID of the student (optional)
-        force_generation: Whether to force generation of a new problem
-        
-    Returns:
-        Selected problem or error information
+    Enhanced problem selection with semantic similarity avoidance
     """
     if avoided_problem_ids is None:
         avoided_problem_ids = []
@@ -53,46 +42,67 @@ def select_problem(
                 "errors": [f"Topic with ID {topic_id} not found"]
             }
         
-        # Step 1: Try vector database first for semantic matching
-        vector_problems = find_similar_problems_via_embeddings(
-            db, 
-            topic_id, 
-            difficulty_enum, 
-            avoided_problem_ids
+        # Step 1: Get candidate problems
+        query = db.query(Problem).filter(
+            Problem.topics.any(Topic.id == topic_id),
+            Problem.difficulty == difficulty_enum
         )
         
-        # Step 2: If vector search fails or returns no results, try direct SQL query
-        if not vector_problems:
-            sql_problems = find_problems_via_sql(
-                db, 
-                topic_id, 
-                difficulty_enum, 
-                avoided_problem_ids
-            )
-            candidate_problems = sql_problems
-        else:
-            candidate_problems = vector_problems
+        # Exclude explicitly avoided problems
+        if avoided_problem_ids:
+            query = query.filter(~Problem.id.in_(avoided_problem_ids))
         
-        # Step 3: Decide whether to use existing problem or generate new
-        # Use force_generation parameter or strategy decision
-        should_generate_new = force_generation or decide_generation_strategy(
-            candidate_problems,
-            is_profiling
-        )
+        candidate_problems = query.all()
         
-        # Step 4: Either select existing problem or generate new one
-        if should_generate_new:
-            result = generate_new_problem_with_fallback(
-                db, 
-                topic_id, 
-                difficulty, 
-                candidate_problems
+        # Step 2: If avoiding similar content, filter further based on title and content
+        if avoid_similar_content and len(avoided_problem_ids) > 0:
+            # Get the recent problems to compare against
+            recent_problems = db.query(Problem).filter(
+                Problem.id.in_(avoided_problem_ids[-3:])  # Compare against last 3 problems
+            ).all()
+            
+            filtered_candidates = []
+            for candidate in candidate_problems:
+                # Skip if title contains similar keywords to recent problems
+                should_skip = False
+                for recent in recent_problems:
+                    # Simple keyword-based similarity check (enhance with embeddings for better results)
+                    candidate_keywords = set(candidate.title.lower().split())
+                    recent_keywords = set(recent.title.lower().split())
+                    
+                    # If >40% of keywords match, consider it similar
+                    if len(candidate_keywords.intersection(recent_keywords)) / max(1, len(candidate_keywords)) > 0.4:
+                        should_skip = True
+                        break
+                
+                if not should_skip:
+                    filtered_candidates.append(candidate)
+            
+            candidate_problems = filtered_candidates
+        
+        # If no suitable candidates or forced to generate, create a new problem
+        if force_generation or not candidate_problems:
+            # Generate a new problem with higher diversity
+            result = generate_new_problem(
+                topic_id=topic_id, 
+                difficulty=difficulty,
+                diversity_factor=0.8  # Higher diversity for different problem types
             )
-            return result
-        else:
-            # Use an existing problem
-            selected_problem = select_best_problem(candidate_problems)
-            return fetch_complete_problem(db, selected_problem.id)
+            
+            if result.get("success", False):
+                problem_data = result["problem_data"]
+                problem_data["problem_id"] = result["problem_id"]
+                problem_data["id"] = result["problem_id"]  # Add id for backward compatibility
+                return {"success": True, "problem": problem_data}
+            else:
+                return {
+                    "success": False, 
+                    "errors": [f"Failed to generate problem: {result.get('error', 'Unknown error')}"]
+                }
+        
+        # Select a problem randomly from candidates
+        selected_problem = random.choice(candidate_problems)
+        return fetch_complete_problem(db, selected_problem.id)
     
     except Exception as e:
         return {
@@ -258,10 +268,14 @@ def fetch_complete_problem(db: Session, problem_id: int) -> Dict[str, Any]:
                 "explanation": example.explanation
             })
         
+        # Clean the title to remove any leading dots
+        clean_title = problem.title.lstrip('. ')
+        
         # Create complete problem object
         complete_problem = {
-            "problem_id": problem.id,
-            "title": problem.title,
+            "problem_id": problem.id,  # Ensure problem_id is set
+            "id": problem.id,  # Include id as well for backward compatibility
+            "title": clean_title,  # Use the cleaned title
             "description": problem.description,
             "difficulty": problem.difficulty.value,
             "constraints": problem.constraints,
@@ -270,6 +284,8 @@ def fetch_complete_problem(db: Session, problem_id: int) -> Dict[str, Any]:
             "topics": [topic.name for topic in problem.topics],
             "examples": examples
         }
+        
+        print(f"Fetched complete problem with ID: {complete_problem['problem_id']} and title: {complete_problem['title']}")
         
         return {
             "success": True,

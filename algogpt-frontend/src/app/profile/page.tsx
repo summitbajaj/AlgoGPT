@@ -76,6 +76,7 @@ export default function ProfilePage() {
         const response = await fetch(`http://localhost:8000/api/profiling/student/${userId}/assessment`);        
         if (response.ok) {
           const data = await response.json();
+          console.log("Fetched assessment data:", data);
           setAssessmentData(data);
         } else {
           console.error("Failed to fetch assessment data");

@@ -1,48 +1,27 @@
 "use client";
 
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import { useRouter } from "next/navigation";
 import { Panel, PanelGroup, PanelResizeHandle } from "react-resizable-panels";
 import { Card } from "@/components/ui/card";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { Button } from "@/components/ui/button";
 import { Alert, AlertTitle, AlertDescription } from "@/components/ui/alert";
-import { Progress } from "@/components/ui/progress";
-import { Problem } from "@/app/utils/api/types";
+import { AlertCircle, Brain, BarChart, Clock } from "lucide-react";
+
+import { Problem, PostRunCodeResponse, SubmitCodeResponse } from "@/app/utils/api/types";
 import { ProblemDescription } from "@/app/components/problem/ProblemDescription";
 import { CodeSection } from "@/app/components/problem/CodeSection";
-import { PostRunCodeResponse, RunCodeTestCaseResult, SubmitCodeResponse, SubmitCodeTestCaseResult } from "@/app/utils/api/types";
 import { InputData } from "@/app/components/problem/InteractiveInput";
 import { parseInputValue } from "@/app/utils/utils";
-import { Brain, BarChart, Clock, AlertCircle } from "lucide-react";
-import AssessmentResults from "@/app/components/profile/AssesmentResultComponent";
 
-// This interface represents the profiling assessment result
-interface AssessmentResult {
-  skill_level: string;
-  topic_assessments: Record<string, {
-    mastery_level: number;
-    problems_attempted: number;
-    problems_solved: number;
-  }>;
-  recommendations: Array<{
-    type: string;
-    topic?: string;
-    area?: string;
-    message: string;
-  }>;
-  problems_attempted: number;
-  problems_solved: number;
-  struggle_areas?: Array<{
-    area: string;
-    count: number;
-  }>;
-}
+import SubmissionReviewModal from "@/app/components/profile/SubmissionReviewModal";
+import AssessmentResults from "@/app/components/profile/AssesmentResultComponent";
 
 export default function ProfilingPage() {
   const router = useRouter();
-  
-  // Regular problem states
+
+  // Basic problem states
   const [problem, setProblem] = useState<Problem | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [isRunning, setIsRunning] = useState(false);
@@ -50,139 +29,239 @@ export default function ProfilingPage() {
   const [activeTestCase, setActiveTestCase] = useState(0);
   const [output, setOutput] = useState<string[]>([]);
   const [testCaseInputs, setTestCaseInputs] = useState<InputData[]>([]);
-  
-  // Profiling specific state
+
+  // Profiling states
   const [sessionId, setSessionId] = useState<string | null>(null);
-  const [profilingStatus, setProfilingStatus] = useState<'initializing' | 'in_progress' | 'completed'>('initializing');
+  const [profilingStatus, setProfilingStatus] = useState<"initializing" | "in_progress" | "completed">(
+    "initializing"
+  );
   const [attemptedProblems, setAttemptedProblems] = useState<number>(0);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [profilingError, setProfilingError] = useState<string | null>(null);
-  const [assessmentResult, setAssessmentResult] = useState<AssessmentResult | null>(null);
+  const [assessmentResult, setAssessmentResult] = useState<any>(null);
+
+  // Submission review modal
+  const [showSubmissionReview, setShowSubmissionReview] = useState(false);
+  const [submissionReview, setSubmissionReview] = useState<any>(null);
+
+  // Single progress bar below code submission
   const [showProgressBar, setShowProgressBar] = useState(false);
   const [progressPercent, setProgressPercent] = useState(0);
 
-  // User ID - replace with your authentication system
   const userId = "user123";
+  const mounted = useRef(true);
 
-  // Add this near the top of your component, with the other state variables
-  const mounted = React.useRef(true);
+  // ----------------------------------
+  // 1. Fetch the first profiling problem
+  // ----------------------------------
+  useEffect(() => {
+    let isMounted = true;
+    setIsLoading(true);
 
-  // First, declare all your event handlers and functions
-  const handleRun = () => {
-    // Transform each test case input
-    const transformedTestCases = testCaseInputs.map((tc) => {
-      const transformed: Record<string, unknown> = {};
-      for (const key in tc) {
-        transformed[key] = parseInputValue(tc[key]);
+    const startProfiling = async () => {
+      try {
+        const resp = await fetch("http://localhost:8000/api/profiling/start-profiling", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ student_id: userId }),
+        });
+        if (!resp.ok) {
+          const text = await resp.text();
+          throw new Error(`Failed to start profiling session: ${resp.status} - ${text}`);
+        }
+        const data = await resp.json();
+
+        if (isMounted) {
+          setSessionId(data.session_id);
+          setProblem(data.problem);
+          setProfilingStatus("in_progress");
+
+          if (data.problem?.examples) {
+            setTestCaseInputs(data.problem.examples.map((ex: any) => ex.input_data));
+            setOutput(Array(data.problem.examples.length).fill(""));
+          } else {
+            setTestCaseInputs([]);
+            setOutput([]);
+          }
+        }
+      } catch (error) {
+        console.error("Error starting profiling session:", error);
+        if (isMounted) {
+          setProfilingError(String(error));
+          setProblem(null);
+        }
+      } finally {
+        if (isMounted) setIsLoading(false);
       }
-      return transformed;
-    });
+    };
 
-    // Send test cases to CodeSection which will forward to PythonEditor
-    setTestCaseInputs(transformedTestCases);
-    // Set running state
+    startProfiling();
+    return () => {
+      isMounted = false;
+    };
+  }, [userId]);
+
+  // ----------------------------------
+  // 2. Local "Run Code"
+  // ----------------------------------
+  const handleRun = () => {
+    const transformed = testCaseInputs.map((tc) => {
+      const res: Record<string, unknown> = {};
+      for (const key in tc) {
+        res[key] = parseInputValue(tc[key]);
+      }
+      return res;
+    });
+    setTestCaseInputs(transformed);
     setIsRunning(true);
   };
 
+  const handleRunCodeExecution = (result: PostRunCodeResponse) => {
+    setIsRunning(false);
+    if (!problem) return;
+
+    const newOutput = testCaseInputs.map((_, idx) => {
+      const found = result.test_results.find((r) => r.test_case_id === idx);
+      return found?.output ? JSON.stringify(found.output) : "No output";
+    });
+    setOutput(newOutput);
+  };
+
+  // ----------------------------------
+  // 3. Submit code (profiling)
+  // ----------------------------------
   const handleSubmit = () => {
     console.log("Submitting code...");
     setIsSubmitting(true);
-    // The actual submission is handled by the PythonEditor component
   };
 
-  // Updated function to handle submission completion
-  const handleSubmitComplete = async (result: SubmitCodeResponse) => {
-    if (!mounted.current) return; // Early return if component is unmounted
-    
+  const handleSubmitComplete = async (submissionResult: SubmitCodeResponse) => {
+    if (!mounted.current) return;
+
     try {
-      // Add user ID for profiling
+      console.log("Submission result:", submissionResult);
+      setSubmissionReview({
+        status: submissionResult.status,
+        code: submissionResult.user_code,
+        passed_tests: submissionResult.passed_tests,
+        total_tests: submissionResult.total_tests,
+        failing_test: submissionResult.failing_test,
+      });
+
+      // Build the data for /submit-profiling-answer
       const submissionWithUser = {
-        ...result,
-        student_id: userId
+        ...submissionResult,
+        problem_id: problem?.problem_id,
+        student_id: userId,
       };
-      
-      // Show progress bar
+
+      // Show the single progress bar below code section
       setShowProgressBar(true);
       setProgressPercent(20);
-      
-      // Submit to profiling system
-      const response = await fetch('http://localhost:8000/api/profiling/submit-profiling-answer', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+
+      // Send to profiling
+      const resp = await fetch("http://localhost:8000/api/profiling/submit-profiling-answer", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           session_id: sessionId,
-          submission_result: submissionWithUser
-        })
+          submission_result: submissionWithUser,
+        }),
       });
-      
+
       setProgressPercent(50);
-      
-      if (!response.ok) throw new Error("Failed to submit answer");
-      const data = await response.json();
-      
+      if (!resp.ok) {
+        throw new Error(`Failed to submit answer: ${resp.status}`);
+      }
+
+      const data = await resp.json();
+      console.log("Profiling API response:", data);
       setProgressPercent(80);
-      
-      if (!mounted.current) return; // Check again after async operation
-      
-      if (data.status === 'completed') {
-        // Assessment is complete
-        setProgressPercent(100);
-        setProfilingStatus('completed');
-        setAssessmentResult(data.assessment_result);
-      } else if (data.status === 'in_progress' && data.next_problem) {
-        // Continue with next problem
-        setProgressPercent(100);
-        setProblem(data.next_problem);
-        setAttemptedProblems(prev => prev + 1);
-        
-        // Initialize test cases for the new problem
-        setOutput(Array(data.next_problem.examples.length).fill(""));
-        setTestCaseInputs(data.next_problem.examples.map((ex: any) => ex.input_data));
-        setActiveTestCase(0);
+
+      if (!mounted.current) return;
+
+      if (data.status === "completed") {
+        // Show submission review
+        setShowSubmissionReview(true);
+        window.sessionStorage.setItem("assessmentResult", JSON.stringify(data.assessment_result));
+        window.sessionStorage.setItem("pendingAction", "completeAssessment");
+      } else if (data.status === "in_progress" && data.next_problem) {
+        setShowSubmissionReview(true);
+        window.sessionStorage.setItem("nextProblem", JSON.stringify(data.next_problem));
+        window.sessionStorage.setItem("pendingAction", "nextProblem");
       } else {
-        setProfilingError(data.error || "An error occurred during profiling");
+        setProfilingError(data.error || "Unknown error from profiling");
       }
     } catch (error) {
-      console.error("Error in profiling submission:", error);
+      console.error("Error in submission:", error);
       if (mounted.current) {
-        setProfilingError("Failed to process your submission. Please try again.");
+        setProfilingError(String(error));
       }
     } finally {
       if (mounted.current) {
         setIsSubmitting(false);
-        // Hide progress bar after a delay
-        setTimeout(() => {
-          setShowProgressBar(false);
-          setProgressPercent(0);
-        }, 600);
+        // If no review shown, hide progress bar
+        if (!showSubmissionReview) {
+          setTimeout(() => {
+            setShowProgressBar(false);
+            setProgressPercent(0);
+          }, 600);
+        }
       }
     }
   };
 
-  const handleRunCodeExecution = (result: PostRunCodeResponse) => {
-    // Reset running state
-    setIsRunning(false);
-    
-    // Log detailed results for debugging
-    console.log('Run code result:', JSON.stringify(result, null, 2));
-    
-    if (!problem) return;
-  
-    // Create an output array for each test case based on its test_case_id.
-    const newOutput = testCaseInputs.map((_, idx) => {
-      // Find the corresponding test result and cast it to the proper type
-      const testCaseResult = result.test_results.find(
-        (tr) => tr.test_case_id === idx
-      ) as RunCodeTestCaseResult | undefined;
-      const outputValue = testCaseResult?.output ?? "No output";
-    
-      return `${JSON.stringify(outputValue)}`;
-    });
+  // ----------------------------------
+  // 4. Next problem flow or final assessment
+  // ----------------------------------
+  const handleReviewContinue = () => {
+    setShowSubmissionReview(false);
 
-    setOutput(newOutput);
+    const pendingAction = window.sessionStorage.getItem("pendingAction");
+    if (pendingAction === "completeAssessment") {
+      // Show final results
+      const savedResult = window.sessionStorage.getItem("assessmentResult");
+      if (savedResult) {
+        setAssessmentResult(JSON.parse(savedResult));
+        setProfilingStatus("completed");
+      }
+    } else if (pendingAction === "nextProblem") {
+      // Load next problem
+      const nextProblemData = window.sessionStorage.getItem("nextProblem");
+      if (nextProblemData) {
+        const nextProblem = JSON.parse(nextProblemData);
+        setProblem(null);
+
+        setTimeout(() => {
+          setProblem(nextProblem);
+          setAttemptedProblems((prev) => prev + 1);
+
+          if (nextProblem.examples) {
+            setOutput(Array(nextProblem.examples.length).fill(""));
+            setTestCaseInputs(nextProblem.examples.map((ex: any) => ex.input_data));
+          } else {
+            setOutput([]);
+            setTestCaseInputs([]);
+          }
+          setActiveTestCase(0);
+        }, 50);
+      }
+    }
+
+    window.sessionStorage.removeItem("pendingAction");
+    window.sessionStorage.removeItem("assessmentResult");
+    window.sessionStorage.removeItem("nextProblem");
+
+    setProgressPercent(100);
+    setTimeout(() => {
+      setShowProgressBar(false);
+      setProgressPercent(0);
+    }, 600);
   };
-  
-  // callback for updating test case inputs
+
+  // ----------------------------------
+  // 5. Test Case Management
+  // ----------------------------------
   const handleTestCaseInputChange = (index: number, newData: InputData) => {
     setTestCaseInputs((prev) => {
       const updated = [...prev];
@@ -191,121 +270,45 @@ export default function ProfilingPage() {
     });
   };
 
-  // Add new function to handle adding a test case
   const handleAddTestCase = () => {
-    // Create a new empty test case with the same structure as existing ones
-    const firstTestCase = testCaseInputs[0];
-    
-    // Create a new test case with the same keys but empty values
-    const newTestCase: InputData = {};
-    Object.keys(firstTestCase).forEach(key => {
-      // Initialize with the same type but "empty" values
-      const existingValue = firstTestCase[key];
-      if (Array.isArray(existingValue)) {
-        newTestCase[key] = [];
-      } else if (typeof existingValue === 'number') {
-        newTestCase[key] = 0;
-      } else if (typeof existingValue === 'string') {
-        newTestCase[key] = "";
-      } else if (typeof existingValue === 'boolean') {
-        newTestCase[key] = false;
-      } else if (existingValue === null) {
-        newTestCase[key] = null;
-      } else if (typeof existingValue === 'object') {
-        newTestCase[key] = {};
+    if (testCaseInputs.length === 0) return;
+    const first = testCaseInputs[0];
+    const newTC: InputData = {};
+
+    for (const key of Object.keys(first)) {
+      const val = first[key];
+      if (Array.isArray(val)) {
+        newTC[key] = [];
+      } else if (typeof val === "number") {
+        newTC[key] = 0;
+      } else if (typeof val === "string") {
+        newTC[key] = "";
+      } else if (typeof val === "boolean") {
+        newTC[key] = false;
+      } else if (val === null) {
+        newTC[key] = null;
+      } else if (typeof val === "object") {
+        newTC[key] = {};
       }
-    });
-    
-    // Add the new test case
-    setTestCaseInputs(prev => [...prev, newTestCase]);
-    
-    // Update the output array to match
-    setOutput(prev => [...prev, ""]);
-    
-    // Switch to the new test case
+    }
+
+    setTestCaseInputs((prev) => [...prev, newTC]);
+    setOutput((prev) => [...prev, ""]);
     setActiveTestCase(testCaseInputs.length);
   };
 
-  // Add new function to handle removing a test case
   const handleRemoveTestCase = (index: number) => {
-    // Don't allow removing all test cases
     if (testCaseInputs.length <= 1) return;
-    
-    // Remove the test case at the specified index
-    setTestCaseInputs(prev => prev.filter((_, i) => i !== index));
-    
-    // Also remove the corresponding output
-    setOutput(prev => prev.filter((_, i) => i !== index));
-    
-    // If we're removing the active test case, switch to the previous one
+    setTestCaseInputs((prev) => prev.filter((_, i) => i !== index));
+    setOutput((prev) => prev.filter((_, i) => i !== index));
     if (activeTestCase >= index) {
       setActiveTestCase(Math.max(0, activeTestCase - 1));
     }
   };
 
-  // Then, define all your useEffect hooks
-  useEffect(() => {
-    let isMounted = true; // Add a mounted flag
-
-    const fetchData = async () => {
-      setIsLoading(true);
-      
-      try {
-        // Profiling mode - initialize a profiling session
-        console.log("Initializing profiling session");
-        // In useEffect
-        const response = await fetch('http://localhost:8000/api/profiling/start-profiling', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ student_id: userId })
-        });
-        
-        if (!response.ok) throw new Error("Failed to start profiling session");
-        
-        const data = await response.json();
-        console.log("Profiling session started:", data);
-        
-        // Only update state if component is still mounted
-        if (isMounted) {
-          // Save session ID and initialize with first problem
-          setSessionId(data.session_id);
-          setProblem(data.problem);
-          setProfilingStatus('in_progress');
-          
-          // Initialize test cases and output for the problem
-          setOutput(Array(data.problem.examples.length).fill(""));
-          setTestCaseInputs(data.problem.examples.map((ex: any) => ex.input_data));
-        }
-      } catch (err) {
-        console.error(err);
-        if (isMounted) {
-          setProblem(null);
-          setProfilingError("Failed to start profiling session. Please try again.");
-        }
-      } finally {
-        if (isMounted) {
-          setIsLoading(false);
-        }
-      }
-    };
-
-    fetchData();
-    
-    // Cleanup function
-    return () => {
-      isMounted = false;
-    };
-  }, [userId]);
-
-  // Add this useEffect after your other useEffect hooks
-  useEffect(() => {
-    mounted.current = true;
-    return () => {
-      mounted.current = false;
-    };
-  }, []);
-
-  // Render loading state
+  // ----------------------------------
+  // Render
+  // ----------------------------------
   if (isLoading) {
     return (
       <div className="flex items-center justify-center h-screen">
@@ -314,7 +317,6 @@ export default function ProfilingPage() {
     );
   }
 
-  // Render error states
   if (profilingError) {
     return (
       <div className="p-8 text-center">
@@ -323,7 +325,7 @@ export default function ProfilingPage() {
           <AlertTitle>Error</AlertTitle>
           <AlertDescription>{profilingError}</AlertDescription>
         </Alert>
-        <Button onClick={() => router.push('/profile')} className="mt-4">
+        <Button onClick={() => router.push("/profile")} className="mt-4">
           Return to Profile
         </Button>
       </div>
@@ -334,102 +336,139 @@ export default function ProfilingPage() {
     return <div className="p-8 text-center text-lg">Problem not found</div>;
   }
 
-  // Render completed profiling assessment
-  if (profilingStatus === 'completed' && assessmentResult) {
+  if (profilingStatus === "completed" && assessmentResult) {
     return <AssessmentResults assessmentResult={assessmentResult} />;
   }
 
-  // Main problem-solving interface
+  // If your server doesn't provide topics, you'll see "General"
+  const displayedTopic = problem.topics && problem.topics.length > 0
+    ? problem.topics.join(", ")
+    : "General";
+
+  // Calculate how many are done out of 12, or remove if not relevant
+  const progressFraction = ((attemptedProblems + 1) / 12) * 100;
+
   return (
-    <div className="fixed inset-0 bg-white text-black flex flex-col pt-[60px]">
-      {/* Profiling header */}
-      <div className="bg-slate-100 py-2 px-4 mb-2 flex justify-between items-center">
-        <div className="flex items-center">
-          <Brain className="h-5 w-5 text-purple-500 mr-2" />
-          <h2 className="font-medium">Profiling Assessment</h2>
-        </div>
-        <div className="flex items-center space-x-4">
-          <div className="flex items-center">
-            <BarChart className="h-4 w-4 text-blue-600 mr-1" />
-            <span className="text-sm">
-              Topic: <span className="font-medium">{problem.topics?.[0] || "General"}</span>
+    <>
+      {/* Full-screen overlay if isSubmitting = true, more opaque */}
+      {isSubmitting && (
+        <div className="fixed inset-0 flex flex-col items-center justify-center bg-white/90 z-50">
+          <div className="flex items-center mb-2">
+            <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-blue-600 mr-3" />
+            <span className="text-lg font-semibold">
+              Analyzing your solution and preparing the next question...
             </span>
           </div>
-          <div className="flex items-center">
-            <Clock className="h-4 w-4 mr-1" />
-            <span className="text-sm">Problem {attemptedProblems + 1}</span>
-          </div>
-        </div>
-      </div>
-      
-      {/* Progress bar for transitions */}
-      {showProgressBar && (
-        <div className="h-1 bg-slate-200 w-full">
-          <div 
-            className="h-1 bg-blue-600 transition-all duration-500 ease-in-out" 
-            style={{ width: `${progressPercent}%` }}
-          ></div>
+          {showProgressBar && (
+            <div className="w-48 bg-slate-200 h-2 rounded-full overflow-hidden mt-2">
+              <div
+                className="bg-blue-600 h-full transition-all duration-500 ease-in-out"
+                style={{ width: `${progressPercent}%` }}
+              />
+            </div>
+          )}
         </div>
       )}
-      
-      <PanelGroup direction="horizontal" className="flex-1">
-        <Panel defaultSize={40} minSize={20}>
-          <div className="h-full overflow-auto p-4">
-            <Card className="p-2">
-              <Tabs value={activeTab} onValueChange={setActiveTab}>
-                <TabsList className="mb-0">
-                  <TabsTrigger value="description">Description</TabsTrigger>
-                </TabsList>
 
-                <TabsContent value="description">
-                  <ProblemDescription problem={problem} />
-                </TabsContent>
-              </Tabs>
-            </Card>
-          </div>
-        </Panel>
-
-        <PanelResizeHandle className="w-2 h-full bg-gray-200 hover:bg-gray-300 transition-colors" />
-
-        <Panel minSize={30}>
-          <CodeSection
-            key={`profiling_${attemptedProblems}`}
-            problem={problem}
-            isRunning={isRunning}
-            activeTestCase={activeTestCase}
-            output={output}
-            onRun={handleRun}
-            onSubmit={handleSubmit}
-            onSubmitComplete={handleSubmitComplete} 
-            onTestCaseChange={setActiveTestCase}
-            onExecutionComplete={handleRunCodeExecution}
-            onTestCaseInputChange={handleTestCaseInputChange}
-            testCaseInputs={testCaseInputs}
-            onAddTestCase={handleAddTestCase} 
-            onRemoveTestCase={handleRemoveTestCase}
-            disableWebSocket={true} 
-          />
-          
-          {/* Submission status indicator */}
-          {isSubmitting && (
-            <Alert className="mt-4 mx-4">
-              <div className="flex items-center">
-                <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-blue-600 mr-2"></div>
-                <span>Analyzing your solution and preparing the next question...</span>
-              </div>
-            </Alert>
-          )}
-          
-          {/* Profiling progress indicator */}
-          <div className="p-4">
-            <div className="text-sm text-gray-500 flex justify-between mb-1">
-              <span>Assessment Progress</span>
-              <span>{Math.min(12, attemptedProblems + 1)} / 12</span>
+      <div className="fixed inset-0 bg-white text-black flex flex-col pt-[60px]">
+        {/* 
+          Header with:
+          - Title
+          - Topic 
+          - Problem # 
+          - Horizontal progress bar for "out of 12"
+        */}
+        <div className="bg-slate-100 py-2 px-4 flex flex-col">
+          <div className="flex justify-between items-center">
+            <div className="flex items-center">
+              <Brain className="h-5 w-5 text-purple-500 mr-2" />
+              <h2 className="font-medium">Profiling Assessment</h2>
             </div>
-            <Progress value={Math.min(100, ((attemptedProblems + 1) / 12) * 100)} className="h-2" />
+            <div className="flex items-center space-x-4">
+              {/* Show the real topic from your data */}
+              <div className="flex items-center">
+                <BarChart className="h-4 w-4 text-blue-600 mr-1" />
+                <span className="text-sm">
+                  Topic: <span className="font-medium">{displayedTopic}</span>
+                </span>
+              </div>
+              {/* Problem X/12 */}
+              <div className="flex items-center">
+                <Clock className="h-4 w-4 mr-1" />
+                <span className="text-sm">Problem {attemptedProblems + 1}/12</span>
+              </div>
+            </div>
           </div>
-        </Panel>
-      </PanelGroup>
-    </div>
+
+          {/* Add a small progress bar to visualize progress out of 12 */}
+          <div className="mt-2 h-2 bg-slate-200 rounded-full overflow-hidden">
+            <div
+              className="h-full bg-blue-600 transition-all duration-300"
+              style={{ width: `${Math.min(100, progressFraction)}%` }}
+            />
+          </div>
+        </div>
+
+        {/* Main layout: left (description) + right (code editor) */}
+        <PanelGroup direction="horizontal" className="flex-1">
+          <Panel defaultSize={40} minSize={20}>
+            <div className="h-full overflow-auto p-4">
+              <Card className="p-2">
+                <Tabs value={activeTab} onValueChange={setActiveTab}>
+                  <TabsList className="mb-0">
+                    <TabsTrigger value="description">Description</TabsTrigger>
+                  </TabsList>
+                  <TabsContent value="description">
+                    <ProblemDescription problem={problem} />
+                  </TabsContent>
+                </Tabs>
+              </Card>
+            </div>
+          </Panel>
+
+          <PanelResizeHandle className="w-2 h-full bg-gray-200 hover:bg-gray-300 transition-colors" />
+
+          <Panel minSize={30}>
+            <CodeSection
+              key={`profiling_problem_${problem.problem_id}_attempt_${attemptedProblems}`}
+              problem={problem}
+              isRunning={isRunning}
+              activeTestCase={activeTestCase}
+              output={output}
+              onRun={handleRun}
+              onSubmit={handleSubmit}
+              onSubmitComplete={handleSubmitComplete}
+              onTestCaseChange={setActiveTestCase}
+              onExecutionComplete={handleRunCodeExecution}
+              onTestCaseInputChange={handleTestCaseInputChange}
+              testCaseInputs={testCaseInputs}
+              onAddTestCase={handleAddTestCase}
+              onRemoveTestCase={handleRemoveTestCase}
+              disableWebSocket={true}
+            />
+
+            {/* Local progress bar below code if not overlaying */}
+            {showProgressBar && !isSubmitting && (
+              <div className="mx-4 mt-2 bg-slate-200 h-2 rounded-full overflow-hidden">
+                <div
+                  className="bg-blue-600 h-full transition-all duration-500 ease-in-out"
+                  style={{ width: `${progressPercent}%` }}
+                />
+              </div>
+            )}
+
+            {/* Debug or remove */}
+            <div className="px-4 py-2 text-xs text-gray-500">
+              Problem ID: {problem.problem_id}
+            </div>
+          </Panel>
+        </PanelGroup>
+
+        {/* Submission review modal */}
+        {showSubmissionReview && submissionReview && (
+          <SubmissionReviewModal review={submissionReview} onContinue={handleReviewContinue} />
+        )}
+      </div>
+    </>
   );
 }
