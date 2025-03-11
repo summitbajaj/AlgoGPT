@@ -48,7 +48,7 @@ export default function ProfilingPage() {
   const [showProgressBar, setShowProgressBar] = useState(false);
   const [progressPercent, setProgressPercent] = useState(0);
 
-  const userId = "user123";
+  const userId = "user129";
   const mounted = useRef(true);
 
   // ----------------------------------
@@ -85,7 +85,6 @@ export default function ProfilingPage() {
           }
         }
       } catch (error) {
-        console.error("Error starting profiling session:", error);
         if (isMounted) {
           setProfilingError(String(error));
           setProblem(null);
@@ -131,7 +130,6 @@ export default function ProfilingPage() {
   // 3. Submit code (profiling)
   // ----------------------------------
   const handleSubmit = () => {
-    console.log("Submitting code...");
     setIsSubmitting(true);
   };
 
@@ -139,7 +137,6 @@ export default function ProfilingPage() {
     if (!mounted.current) return;
 
     try {
-      console.log("Submission result:", submissionResult);
       setSubmissionReview({
         status: submissionResult.status,
         code: submissionResult.user_code,
@@ -175,7 +172,6 @@ export default function ProfilingPage() {
       }
 
       const data = await resp.json();
-      console.log("Profiling API response:", data);
       setProgressPercent(80);
 
       if (!mounted.current) return;
@@ -193,7 +189,6 @@ export default function ProfilingPage() {
         setProfilingError(data.error || "Unknown error from profiling");
       }
     } catch (error) {
-      console.error("Error in submission:", error);
       if (mounted.current) {
         setProfilingError(String(error));
       }

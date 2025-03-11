@@ -46,24 +46,18 @@ class ProfilingState(TypedDict):
 def initialize_profiling(state: ProfilingState) -> ProfilingState:
     """
     Initialize the profiling session for a student.
-    - Creates student profile if it doesn't exist
-    - Sets up initial assessment parameters
+    Only sets default values if they are not already present.
     """
     student_id = state["student_id"]
-    
-    # Create a new session
     db = SessionLocal()
     try:
-        # Check if student profile exists, create if not
-        # First try to parse the student_id as a UUID, but if that fails, use it as a string
+        # Parse or generate the UUID for the student
         try:
-            # Try to parse as UUID
             uuid_student_id = uuid.UUID(student_id)
         except ValueError:
-            # If not a valid UUID, we'll need to handle this differently
-            # Option 1: Generate a UUID from the string
             uuid_student_id = uuid.uuid5(uuid.NAMESPACE_DNS, student_id)
-            
+        
+        # Check if student profile exists; create if not
         student_profile = db.query(StudentProfile).filter(
             StudentProfile.user_id == uuid_student_id
         ).first()
@@ -72,8 +66,6 @@ def initialize_profiling(state: ProfilingState) -> ProfilingState:
             student_profile = StudentProfile(user_id=uuid_student_id)
             db.add(student_profile)
             db.flush()
-            
-            # Initialize topic mastery for all topics
             topics = db.query(Topic).all()
             for topic in topics:
                 topic_mastery = StudentTopicMastery(
@@ -84,38 +76,36 @@ def initialize_profiling(state: ProfilingState) -> ProfilingState:
                     problems_solved=0
                 )
                 db.add(topic_mastery)
-            
             db.commit()
         
-        # Initialize assessment state with empty values
-        result = {
-            **state,
-            "current_phase": "initializing",
-            "assessment_status": {
-                "current_topic_id": None,
-                "current_difficulty": "Easy",
-                "problems_presented": 0,
-                "problems_solved": 0,
-                "current_topic_mastery": 0.0,
-                "estimated_skill_level": "Beginner",
-            },
-            "completed_problems": [],
-            "current_problem": None,
-            "topic_assessments": {},
-            "recommendations": [],
-            "errors": [],
-            "question_selection_request": None,
-            "session_start_time": datetime.utcnow(),
-            "struggle_patterns": {}
-        }
-        return result
+        # Set defaults only if the keys are missing
+        state.setdefault("current_phase", "initializing")
+        state.setdefault("assessment_status", {
+            "current_topic_id": None,
+            "current_difficulty": "Easy",
+            "problems_presented": 0,
+            "problems_solved": 0,
+            "current_topic_mastery": 0.0,
+            "estimated_skill_level": "Beginner",
+        })
+        state.setdefault("completed_problems", [])
+        state.setdefault("current_problem", None)
+        state.setdefault("topic_assessments", {})
+        state.setdefault("recommendations", [])
+        state.setdefault("errors", [])
+        state.setdefault("question_selection_request", None)
+        state.setdefault("struggle_patterns", {})
+        if "session_start_time" not in state:
+            state["session_start_time"] = datetime.utcnow()
+        
+        # IMPORTANT: Do not override keys if they already exist
+        return state
     except Exception as e:
-        return {
-            **state,
-            "errors": [f"Error initializing profiling: {str(e)}"]
-        }
+        state["errors"] = state.get("errors", []) + [f"Error initializing profiling: {str(e)}"]
+        return state
     finally:
         db.close()
+
 
 def select_next_topic(state: ProfilingState) -> ProfilingState:
     """
@@ -309,9 +299,6 @@ def update_with_problem(state: ProfilingState, problem_data: Dict[str, Any]) -> 
     if not problem_id:
         problem_id = problem_data.get('id')
     
-    # Log the extracted problem ID
-    print(f"Extracted problem_id: {problem_id}, from data with keys: {list(problem_data.keys())}")
-    
     # Clean up the title - remove any leading dots or extra spacing
     title = problem_data.get('title', '')
     clean_title = title.lstrip('. ')  # Remove any leading dots and spaces
@@ -334,9 +321,6 @@ def update_with_problem(state: ProfilingState, problem_data: Dict[str, Any]) -> 
     
     # Increment problems presented count
     problems_presented = state["assessment_status"]["problems_presented"] + 1
-    
-    # Log the normalized problem structure
-    print(f"Normalized problem structure: problem_id={normalized_problem['problem_id']}, title={normalized_problem['title']}")
     
     result = {
         **state,
@@ -404,7 +388,7 @@ def process_submission_result(state: ProfilingState, submission_result: Dict[str
         
         # Update assessment status
         current_status = state["assessment_status"]
-        problems_solved = current_status["problems_solved"]
+        problems_solved = current_status.get("problems_solved", 0) 
         
         if status.lower() == "accepted":
             problems_solved += 1
@@ -674,7 +658,7 @@ def create_profiling_agent() -> StateGraph:
     workflow.add_edge(START, "initialize")
     workflow.add_edge("initialize", "select_topic")
     
-    # Add conditional edges from select_topic with debug
+    # Add conditional edges from select_topic
     def conditional_debug(state):
         phase = state["current_phase"]
         should_finalize = phase == "finalizing"
@@ -742,75 +726,169 @@ def process_submission_and_continue(session_id: str, submission_result: Dict[str
     """
     Process a student's submission and get the next problem with enhanced diversity.
     """
-    # Configure thread for this session
-    config = {"configurable": {"thread_id": session_id}}
-    
-    # Get current state
-    current_checkpoint = profiling_agent.checkpointer.get(config)
-    if not current_checkpoint:
-        error_msg = f"No active session found with ID {session_id}"
-        return {
-            "status": "error",
-            "errors": [error_msg]
-        }
-    
-    # Get current state
-    current_state = current_checkpoint.get("channel_values", {})
-    
-    # Make sure submission_result has problem_id
-    if "problem_id" not in submission_result and "id" in submission_result:
-        submission_result["problem_id"] = submission_result["id"]
-        print(f"Added problem_id to submission_result: {submission_result['problem_id']}")
-    
-    # Process submission using the direct function
-    updated_state = process_submission_result(current_state, submission_result)
-    
-    # Check for processing errors
-    if len(updated_state.get("errors", [])) > len(current_state.get("errors", [])):
-        return {
-            "status": "error",
-            "errors": updated_state.get("errors", ["Unknown error during submission processing"])
-        }
-    
-    # Continue profiling by selecting next topic
-    next_state = select_next_topic(updated_state)
-    
-    # Save updated state
-    profiling_agent.invoke(next_state, config=config)
-    
-    # Check if assessment is complete
-    if next_state.get("current_phase") == "finalizing":
-        # Finalize assessment
-        final_state = finalize_profiling(next_state)
-        profiling_agent.invoke(final_state, config=config)
+    try:
+        # Configure thread for this session
+        config = {"configurable": {"thread_id": session_id}}
         
-        return {
-            "status": "completed",
-            "assessment": {
-                "skill_level": final_state["assessment_status"]["estimated_skill_level"],
-                "topic_assessments": final_state["topic_assessments"],
-                "recommendations": final_state["recommendations"],
-                "problems_attempted": len(final_state["completed_problems"]),
-                "problems_solved": final_state["assessment_status"]["problems_solved"],
-                "struggle_areas": [{"area": k, "count": v} for k, v in final_state.get("struggle_patterns", {}).items()]
+        # Get current state
+        try:
+            current_checkpoint = profiling_agent.checkpointer.get(config)
+        except Exception as e:
+            return {
+                "status": "error",
+                "errors": [f"Error retrieving checkpoint: {str(e)}"]
             }
-        }
-    
-    # Request next problem with high diversity
-    problem_request_state = request_problem(next_state)
-    profiling_agent.invoke(problem_request_state, config=config)
-    
-    if "question_selection_request" in problem_request_state:
-        # Add flag to avoid similar content
-        question_request = problem_request_state["question_selection_request"]
-        question_request["avoid_similar_content"] = True
+        
+        if not current_checkpoint:
+            error_msg = f"No active session found with ID {session_id}"
+            return {
+                "status": "error",
+                "errors": [error_msg]
+            }
+        
+        # Get current state
+        try:
+            current_state = current_checkpoint.get("channel_values", {})
+        except Exception as e:
+            return {
+                "status": "error",
+                "errors": [f"Error accessing state: {str(e)}"]
+            }
+        
+        # Make sure submission_result has problem_id
+        try:
+            if "problem_id" not in submission_result and "id" in submission_result:
+                submission_result["problem_id"] = submission_result["id"]
+        except Exception as e:
+            # Continue anyway, let process_submission_result handle missing problem_id
+            pass
+        
+        # Process submission using the direct function
+        try:
+            updated_state = process_submission_result(current_state, submission_result)
+        except Exception as e:
+            return {
+                "status": "error",
+                "errors": [f"Error processing submission: {str(e)}"]
+            }
+        
+        # Check for processing errors
+        if len(updated_state.get("errors", [])) > len(current_state.get("errors", [])):
+            return {
+                "status": "error",
+                "errors": updated_state.get("errors", ["Unknown error during submission processing"])
+            }
+        
+        # Save the updated state FIRST to ensure it's preserved
+        try:
+            invoke_result = profiling_agent.invoke(updated_state, config=config)
+        except Exception as e:
+            # Continue anyway, we still have updated_state in memory
+            pass
+        
+        # Check if we've reached the maximum questions limit
+        try:
+            MAX_QUESTIONS = 12
+            total_problems_attempted = len(updated_state["completed_problems"])
+            
+            if total_problems_attempted >= MAX_QUESTIONS:
+                # Directly set to finalizing and skip next topic selection
+                updated_state["current_phase"] = "finalizing"
+                
+                # Finalize assessment
+                final_state = finalize_profiling(updated_state)
+                profiling_agent.invoke(final_state, config=config)
+                
+                return {
+                    "status": "completed",
+                    "assessment": {
+                        "skill_level": final_state["assessment_status"]["estimated_skill_level"],
+                        "topic_assessments": final_state["topic_assessments"],
+                        "recommendations": final_state["recommendations"],
+                        "problems_attempted": len(final_state["completed_problems"]),
+                        "problems_solved": final_state["assessment_status"]["problems_solved"],
+                        "struggle_areas": [{"area": k, "count": v} for k, v in final_state.get("struggle_patterns", {}).items()]
+                    }
+                }
+        except Exception as e:
+            return {
+                "status": "error",
+                "errors": [f"Error checking question limit: {str(e)}"]
+            }
+        
+        # Continue profiling by selecting next topic
+        try:
+            next_state = select_next_topic(updated_state)
+        except Exception as e:
+            return {
+                "status": "error",
+                "errors": [f"Error selecting next topic: {str(e)}"]
+            }
+        
+        # Save updated state
+        try:
+            profiling_agent.invoke(next_state, config=config)
+        except Exception as e:
+            # Continue anyway
+            pass
+        
+        # Check if assessment is complete (this could be from time limit or other conditions)
+        if next_state.get("current_phase") == "finalizing":
+            try:
+                # Finalize assessment
+                final_state = finalize_profiling(next_state)
+                profiling_agent.invoke(final_state, config=config)
+                
+                return {
+                    "status": "completed",
+                    "assessment": {
+                        "skill_level": final_state["assessment_status"]["estimated_skill_level"],
+                        "topic_assessments": final_state["topic_assessments"],
+                        "recommendations": final_state["recommendations"],
+                        "problems_attempted": len(final_state["completed_problems"]),
+                        "problems_solved": final_state["assessment_status"]["problems_solved"],
+                        "struggle_areas": [{"area": k, "count": v} for k, v in final_state.get("struggle_patterns", {}).items()]
+                    }
+                }
+            except Exception as e:
+                return {
+                    "status": "error",
+                    "errors": [f"Error finalizing assessment: {str(e)}"]
+                }
+        
+        # Request next problem with high diversity
+        try:
+            problem_request_state = request_problem(next_state)
+            profiling_agent.invoke(problem_request_state, config=config)
+        except Exception as e:
+            return {
+                "status": "error",
+                "errors": [f"Error requesting next problem: {str(e)}"]
+            }
+        
+        if "question_selection_request" in problem_request_state:
+            try:
+                # Add flag to avoid similar content
+                question_request = problem_request_state["question_selection_request"]
+                question_request["avoid_similar_content"] = True
+                
+                return {
+                    "status": "in_progress",
+                    "question_selection_request": question_request
+                }
+            except Exception as e:
+                return {
+                    "status": "error", 
+                    "errors": [f"Error preparing question request: {str(e)}"]
+                }
         
         return {
-            "status": "in_progress",
-            "question_selection_request": question_request
+            "status": "error",
+            "errors": ["Failed to generate next question request"]
         }
-    
-    return {
-        "status": "error",
-        "errors": ["Failed to generate next question request"]
-    }
+        
+    except Exception as e:
+        return {
+            "status": "error",
+            "errors": [f"Critical error in process_submission_and_continue: {str(e)}"]
+        }

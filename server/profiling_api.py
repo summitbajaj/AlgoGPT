@@ -4,7 +4,7 @@ from sqlalchemy import func
 from typing import Dict, List, Any, Optional
 from pydantic import BaseModel
 from database.database import SessionLocal
-from agents.profiling_agent import start_profiling_session, process_submission_and_continue, update_with_problem
+from agents.profiling_agent import start_profiling_session, process_submission_and_continue, finalize_profiling
 from agents.question_selector_agent import select_problem
 from agents.analysis_agent import analyze_submission
 import json
@@ -73,15 +73,12 @@ async def api_start_profiling(
     db: Session = Depends(get_db)
 ):
     try:
-        print(f"Starting profiling session for student_id: {request.student_id}")
         # Start profiling session
         session_id, result = start_profiling_session(request.student_id)
-        print(f"Profiling session started with session_id: {session_id}, result: {result}")
         
         # Get question selection request from result
         question_request = result.get("question_selection_request")
         if not question_request:
-            print("Failed to initialize profiling session: No question_selection_request found")
             raise HTTPException(status_code=500, detail="Failed to initialize profiling session")
         
         # Select the first problem
@@ -93,11 +90,9 @@ async def api_start_profiling(
             student_id=request.student_id,
             force_generation=True  # Force generation for the first problem
         )
-        print(f"Problem selection result: {problem_result}")
         
         if not problem_result.get("success", False):
             error_detail = f"Failed to select problem: {problem_result.get('errors', ['Unknown error'])}"
-            print(error_detail)
             raise HTTPException(
                 status_code=500, 
                 detail=error_detail
@@ -112,25 +107,20 @@ async def api_start_profiling(
             current_checkpoint = profiling_agent.checkpointer.get(config)
             if current_checkpoint:
                 current_state = current_checkpoint.get("channel_values", {})
-                print(f"Current checkpoint state: {current_state}")
                 
                 # Update with the selected problem
                 updated_state = update_with_problem(current_state, problem_result["problem"])
-                print(f"Updated state with problem: {updated_state}")
                 
                 # Save the updated state back to the agent
                 profiling_agent.invoke(updated_state, config=config)
-            else:
-                print("No current checkpoint found")
         except Exception as e:
-            print(f"Error updating agent state: {e}")
+            pass
         
         return StartProfilingResponse(
             session_id=session_id,
             problem=problem_result["problem"]
         )
     except Exception as e:
-        print(f"Exception in /start-profiling: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
 # Endpoint to submit an answer during profiling
@@ -208,7 +198,27 @@ async def api_submit_profiling_answer(
                 if current_checkpoint:
                     current_state = current_checkpoint.get("channel_values", {})
                     
-                    # Update with the selected problem
+                    # Additional check for max questions
+                    completed_problems = current_state.get("completed_problems", [])
+                    if len(completed_problems) >= 12:  # MAX_QUESTIONS
+                        # Force finalize if we've reached the limit
+                        current_state["current_phase"] = "finalizing"
+                        final_state = finalize_profiling(current_state)
+                        profiling_agent.invoke(final_state, config=config)
+                        
+                        return SubmitProfilingAnswerResponse(
+                            status="completed",
+                            assessment_result={
+                                "skill_level": final_state["assessment_status"]["estimated_skill_level"],
+                                "topic_assessments": final_state["topic_assessments"],
+                                "recommendations": final_state["recommendations"],
+                                "problems_attempted": len(final_state["completed_problems"]),
+                                "problems_solved": final_state["assessment_status"]["problems_solved"],
+                                "struggle_areas": [{"area": k, "count": v} for k, v in final_state.get("struggle_patterns", {}).items()]
+                            }
+                        )
+                    
+                    # If not at limit, update with the selected problem
                     updated_state = update_with_problem(current_state, problem_result["problem"])
                     
                     # Save the updated state
@@ -228,11 +238,11 @@ async def api_submit_profiling_answer(
             next_problem=problem_result["problem"]
         )
     except Exception as e:
+        traceback.print_exc()
         return SubmitProfilingAnswerResponse(
             status="error",
             error=str(e)
         )
-
 # Endpoint to analyze a submission with detailed feedback
 @profiling_router.post("/analyze-submission")
 async def api_analyze_submission(
