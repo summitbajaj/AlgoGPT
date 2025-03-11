@@ -4,7 +4,7 @@ import { Button } from "@/components/ui/button";
 import { CheckCircle, XCircle, AlertTriangle } from "lucide-react";
 
 // Define a type for JSON-serializable values
-type JsonValue = 
+export type JsonValue = 
   | string
   | number
   | boolean

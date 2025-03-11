@@ -14,9 +14,29 @@ import { ProblemDescription } from "@/app/components/problem/ProblemDescription"
 import { CodeSection } from "@/app/components/problem/CodeSection";
 import { InputData } from "@/app/components/problem/InteractiveInput";
 import { parseInputValue } from "@/app/utils/utils";
+import { JsonValue } from "@/app/components/profile/SubmissionReviewModal";
 
 import SubmissionReviewModal from "@/app/components/profile/SubmissionReviewModal";
-import AssessmentResults from "@/app/components/profile/AssesmentResultComponent";
+import AssessmentResults, { AssessmentResult } from "@/app/components/profile/AssesmentResultComponent";
+
+interface SubmissionReview {
+  status: string;
+  code: string;
+  passed_tests: number;
+  total_tests: number;
+  failing_test?: {
+    input: JsonValue;
+    expected_output: JsonValue;
+    output: JsonValue;  // Note the property name change from just 'output'
+    error_message?: string;
+  };
+}
+
+interface ProblemExample {
+  input_data: InputData;
+  expected_output?: unknown;
+  explanation?: string;
+}
 
 export default function ProfilingPage() {
   const router = useRouter();
@@ -38,11 +58,11 @@ export default function ProfilingPage() {
   const [attemptedProblems, setAttemptedProblems] = useState<number>(0);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [profilingError, setProfilingError] = useState<string | null>(null);
-  const [assessmentResult, setAssessmentResult] = useState<any>(null);
+  const [assessmentResult, setAssessmentResult] = useState<AssessmentResult | null>(null);
 
   // Submission review modal
   const [showSubmissionReview, setShowSubmissionReview] = useState(false);
-  const [submissionReview, setSubmissionReview] = useState<any>(null);
+  const [submissionReview, setSubmissionReview] = useState<SubmissionReview | null>(null);
 
   // Single progress bar below code submission
   const [showProgressBar, setShowProgressBar] = useState(false);
@@ -77,7 +97,7 @@ export default function ProfilingPage() {
           setProfilingStatus("in_progress");
 
           if (data.problem?.examples) {
-            setTestCaseInputs(data.problem.examples.map((ex: any) => ex.input_data));
+            setTestCaseInputs(data.problem.examples.map((ex: ProblemExample) => ex.input_data));
             setOutput(Array(data.problem.examples.length).fill(""));
           } else {
             setTestCaseInputs([]);
@@ -142,7 +162,13 @@ export default function ProfilingPage() {
         code: submissionResult.user_code,
         passed_tests: submissionResult.passed_tests,
         total_tests: submissionResult.total_tests,
-        failing_test: submissionResult.failing_test,
+        failing_test: submissionResult.failing_test ? {
+          input: submissionResult.failing_test.input as JsonValue,
+          expected_output: submissionResult.failing_test.expected_output as JsonValue,
+          output: submissionResult.failing_test.output as JsonValue,
+          // The 'message' property doesn't exist in the failing_test object
+          error_message: undefined // Provide a default value since it's optional
+        } : undefined
       });
 
       // Build the data for /submit-profiling-answer
@@ -233,7 +259,7 @@ export default function ProfilingPage() {
 
           if (nextProblem.examples) {
             setOutput(Array(nextProblem.examples.length).fill(""));
-            setTestCaseInputs(nextProblem.examples.map((ex: any) => ex.input_data));
+            setTestCaseInputs(nextProblem.examples.map((ex: ProblemExample) => ex.input_data));
           } else {
             setOutput([]);
             setTestCaseInputs([]);
@@ -337,7 +363,7 @@ export default function ProfilingPage() {
 
   // If your server doesn't provide topics, you'll see "General"
   const displayedTopic = problem.topics && problem.topics.length > 0
-    ? problem.topics.join(", ")
+    ? (problem.topics as string[]).join(", ")
     : "General";
 
   // Calculate how many are done out of 12, or remove if not relevant

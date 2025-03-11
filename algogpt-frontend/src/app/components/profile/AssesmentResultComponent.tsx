@@ -24,7 +24,7 @@ interface StruggleArea {
   count: number;
 }
 
-interface AssessmentResult {
+export interface AssessmentResult {
   skill_level: string;
   topic_assessments: Record<string, TopicAssessment>;
   recommendations: Recommendation[];
@@ -33,7 +33,7 @@ interface AssessmentResult {
   struggle_areas?: StruggleArea[];
 }
 
-interface AssessmentResultsProps {
+export interface AssessmentResultsProps {
   assessmentResult: AssessmentResult;
 }
 
