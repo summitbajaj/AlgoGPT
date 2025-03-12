@@ -248,3 +248,89 @@ class ProblemEmbedding(Base):
     
     # Relationship to Problem
     problem = relationship("Problem", backref="embedding")
+
+# Define status enum for response validation
+class ResponseValidationStatus(str, enum.Enum):
+    VALID = "Valid"
+    INVALID = "Invalid"
+    IMPROVED = "Improved"
+    ACCEPTED_AFTER_ATTEMPTS = "AcceptedAfterAttempts"
+
+# Define the tables for chatbot response tracking and validation
+class ChatSession(Base):
+    __tablename__ = "chat_sessions"
+    
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    student_id = Column(UUID(as_uuid=True), ForeignKey("student_profiles.id"), nullable=False)
+    problem_id = Column(Integer, ForeignKey("problems.id"), nullable=False)
+    start_time = Column(DateTime, default=datetime.utcnow)
+    end_time = Column(DateTime, nullable=True)
+    session_summary = Column(Text, nullable=True)  # AI-generated summary of the session
+    created_at = Column(DateTime, default=datetime.utcnow)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    
+    # Relationships
+    student = relationship("StudentProfile")
+    problem = relationship("Problem")
+    messages = relationship("ChatMessage", back_populates="session", cascade="all, delete-orphan")
+    code_snapshots = relationship("CodeSnapshot", back_populates="session", cascade="all, delete-orphan")
+
+class ChatMessage(Base):
+    __tablename__ = "chat_messages"
+    
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    session_id = Column(UUID(as_uuid=True), ForeignKey("chat_sessions.id"), nullable=False)
+    is_from_student = Column(BOOLEAN, default=True)  # True if from student, False if from AI
+    content = Column(Text, nullable=False)
+    timestamp = Column(DateTime, default=datetime.utcnow)
+    
+    # Fields for AI response validation
+    was_validated = Column(BOOLEAN, default=False)  # Whether this message went through validation
+    validation_status = Column(Enum(ResponseValidationStatus), nullable=True)
+    validation_attempts = Column(Integer, default=0)  # Number of improvement attempts
+    
+    # Relationships
+    session = relationship("ChatSession", back_populates="messages")
+    validation_records = relationship("ResponseValidation", back_populates="message", cascade="all, delete-orphan")
+
+class ResponseValidation(Base):
+    __tablename__ = "response_validations"
+    
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    message_id = Column(UUID(as_uuid=True), ForeignKey("chat_messages.id"), nullable=False)
+    attempt_number = Column(Integer, nullable=False)  # Which attempt this was (1, 2, 3)
+    original_content = Column(Text, nullable=False)  # The content before validation/improvement
+    validation_result = Column(BOOLEAN, nullable=False)  # True if valid, False if needed improvement
+    feedback = Column(JSONB, nullable=True)  # Structured feedback from validator
+    improved_content = Column(Text, nullable=True)  # The improved content if any
+    timestamp = Column(DateTime, default=datetime.utcnow)
+    
+    # Relationships
+    message = relationship("ChatMessage", back_populates="validation_records")
+    prompt_improvements = relationship("PromptImprovement", back_populates="validation", cascade="all, delete-orphan")
+
+class PromptImprovement(Base):
+    __tablename__ = "prompt_improvements"
+    
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    validation_id = Column(UUID(as_uuid=True), ForeignKey("response_validations.id"), nullable=False)
+    instruction = Column(Text, nullable=False)  # The prompt improvement instruction
+    is_active = Column(BOOLEAN, default=True)  # Whether this improvement is currently in use
+    effectiveness_score = Column(Float, default=0.0)  # Score based on subsequent validations
+    created_at = Column(DateTime, default=datetime.utcnow)
+    last_used_at = Column(DateTime, nullable=True)
+    
+    # Relationships
+    validation = relationship("ResponseValidation", back_populates="prompt_improvements")
+
+class CodeSnapshot(Base):
+    __tablename__ = "code_snapshots"
+    
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    session_id = Column(UUID(as_uuid=True), ForeignKey("chat_sessions.id"), nullable=False)
+    code = Column(Text, nullable=False)
+    timestamp = Column(DateTime, default=datetime.utcnow)
+    ai_feedback = Column(Text, nullable=True)  # Any feedback the AI provided on this code version
+    
+    # Relationships
+    session = relationship("ChatSession", back_populates="code_snapshots")

@@ -7,7 +7,7 @@ from database.models import Problem, TestCase, Submission, Topic
 from utils.helpers import get_all_test_cases, get_function_name, get_benchmark_test_cases, get_problem_context_for_ai, determine_submission_status, get_first_failing_test, store_submission_results
 from dotenv import load_dotenv
 import os
-from agents.ai_chatbot import graph
+from agents.ai_chatbot import AITutorChatbot
 from langchain_core.messages import HumanMessage, AIMessage
 import sys
 import json
@@ -15,6 +15,7 @@ from agents.ai_complexity_analyzer import AIComplexityAnalyzer, should_enhance_w
 from agents.question_generator_agent import generate_new_problem
 from utils.embedding_creator import create_embedding_after_generation
 from profiling_api import register_profiling_api
+from uuid import UUID
 
 # Add shared_resources to Python path
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "shared_resources")))
@@ -353,35 +354,30 @@ async def chat_ai(request: ChatRequest, db: Session = Depends(get_db)):
     if not user_id:
         raise HTTPException(status_code=400, detail="user_id is required")
 
+    # Create chatbot instance
+    chatbot = AITutorChatbot(db=db)
+    
     # Unique thread ID for this user-problem pair
     thread_id = f"{user_id}_{problem_id}"
-
-    # Check if the thread already exists
-    current_checkpoint = graph.checkpointer.get({"configurable": {"thread_id": thread_id}})
-
-    if current_checkpoint is None:
-        # New thread: fetch problem context from DB
-        problem_context = get_problem_context_for_ai(db, problem_id)
-        if not problem_context:
-            raise HTTPException(status_code=404, detail="Problem not found")
-        initial_state = {
-            "messages": [HumanMessage(content=user_message)],
-            "problem_context": problem_context,
-        }
-    else:
-        # Existing thread: use the saved problem context
-        initial_state = {
-            "messages": [HumanMessage(content=user_message)],
-        }
-
-    # Run the LangGraph model with the initial state
-    response = graph.invoke(
-        initial_state,
-        config={
-            "configurable": {"thread_id": thread_id},
-        }
-    )
-
+    
+    # Get problem context
+    problem_context = get_problem_context_for_ai(db, problem_id)
+    if not problem_context:
+        raise HTTPException(status_code=404, detail="Problem not found")
+    
+    # Create chat state
+    chat_state = {
+        "messages": [HumanMessage(content=json.dumps({"type": "chat", "content": user_message}))],
+        "problem_context": problem_context,
+        "user_code": "",
+        "code_history": [],
+        "student_id": user_id,
+        "problem_id": problem_id
+    }
+    
+    # Invoke the chatbot
+    response = chatbot.invoke(chat_state)
+    
     # Send back the AI's latest reply
     return {"answer": response["messages"][-1].content}
 
@@ -389,7 +385,9 @@ async def chat_ai(request: ChatRequest, db: Session = Depends(get_db)):
 # Websocket endpoint to communicate with AI Chatbot for a given problem
 # -------------------------------
 # Store active WebSocket connections
+# Store active WebSocket connections and chatbot instances
 active_connections = {}
+chatbot_instances = {}
 
 @app.websocket("/ws/chat/{user_id}/{problem_id}")
 async def websocket_chat(
@@ -401,6 +399,12 @@ async def websocket_chat(
     await websocket.accept()
     connection_id = f"{user_id}_{problem_id}"
     active_connections[connection_id] = websocket
+    
+    # Create a dedicated chatbot instance for this connection
+    chatbot_instances[connection_id] = AITutorChatbot(db=db)
+    
+    # Initialize chat state with empty messages
+    chat_state = None
     
     try:
         while True:
@@ -423,42 +427,39 @@ async def websocket_chat(
                 continue
             
             human_message = HumanMessage(content=message_content)
-            config = {"configurable": {"thread_id": connection_id}}
             
-            current_checkpoint = graph.checkpointer.get(config)
-            
-            if current_checkpoint is None:
+            # Initialize chat state if this is the first message
+            if chat_state is None:
                 problem_context = get_problem_context_for_ai(db, int(problem_id))
                 if not problem_context:
                     await websocket.send_json({"error": "Problem not found"})
                     continue
-                initial_state = {
+                
+                chat_state = {
                     "messages": [human_message],
                     "problem_context": problem_context,
                     "user_code": "",
-                    "code_history": []  # Initialize empty history
+                    "code_history": [],
+                    "student_id": user_id,
+                    "problem_id": int(problem_id)
                 }
             else:
-                channel_values = current_checkpoint.get("channel_values", {}) if isinstance(current_checkpoint, dict) else {}
-                messages = channel_values.get("messages", [])
-                if not isinstance(messages, list):
-                    messages = []
-                initial_state = {
-                    "messages": messages + [human_message],
-                    "problem_context": channel_values.get("problem_context", get_problem_context_for_ai(db, int(problem_id))),
-                    "user_code": channel_values.get("user_code", ""),
-                    "code_history": channel_values.get("code_history", [])  # Retrieve history
-                }
+                # Update existing chat state with the new message
+                chat_state["messages"].append(human_message)
             
-            response = graph.invoke(initial_state, config=config)
+            # Process through the chatbot
+            chat_state = chatbot_instances[connection_id].invoke(chat_state)
             
-            last_message = response["messages"][-1]
+            # Extract the AI's response
+            last_message = chat_state["messages"][-1]
             if isinstance(last_message, AIMessage):
                 await websocket.send_json({"answer": last_message.content})
     
     except WebSocketDisconnect:
         if connection_id in active_connections:
             del active_connections[connection_id]
+        if connection_id in chatbot_instances:
+            del chatbot_instances[connection_id]
     except Exception as e:
         try:
             await websocket.send_json({"error": str(e)})
@@ -466,6 +467,8 @@ async def websocket_chat(
             pass
         if connection_id in active_connections:
             del active_connections[connection_id]
+        if connection_id in chatbot_instances:
+            del chatbot_instances[connection_id]
 
 
 # Get available topics endpoint
