@@ -9,3 +9,4 @@ langchain
 langgraph
 langchain-openai
 uvicorn[standard]
+pgvector

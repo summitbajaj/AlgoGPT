@@ -23,6 +23,7 @@ interface CodeSectionProps {
   testCaseInputs: InputData[];
   onAddTestCase?: () => void;
   onRemoveTestCase?: (index: number) => void;
+  disableWebSocket?: boolean; 
 }
 
 export function CodeSection({
@@ -39,6 +40,7 @@ export function CodeSection({
   testCaseInputs,
   onAddTestCase,
   onRemoveTestCase,
+  disableWebSocket = false, // Default to false
 }: CodeSectionProps) {
 
   const [hasRun, setHasRun] = useState(false);
@@ -128,6 +130,7 @@ export function CodeSection({
                   onRunCodeComplete={onExecutionComplete}
                   onSubmitCodeComplete={onSubmitComplete}
                   problemId={problem.problem_id}
+                  disableWebSocket={disableWebSocket} // Pass the prop to PythonEditor
                   testCaseInputs={testCaseInputs.map((tc, index) => {
                     // Transform each key in the test case input
                     const parsed: Record<string, unknown> = {};

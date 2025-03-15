@@ -1,6 +1,6 @@
 from sqlalchemy.orm import Session
 from fastapi import HTTPException
-from database.models import TestCase, Problem, Example, Solution, Submission, SubmissionTestResult, SubmissionStatus
+from database.models import TestCase, Problem, Example, Solution, Submission, SubmissionTestResult, SubmissionStatus, StudentProfile
 from shared_resources.schemas import SubmitCodeTestCase
 from typing import List, Dict, Any, Optional
 import uuid
@@ -231,3 +231,41 @@ def store_submission_results(
     db.commit()
     
     return submission
+
+
+def convert_to_uuid(user_id_str: str) -> uuid.UUID:
+    print(f"Attempting to convert '{user_id_str}' to UUID")
+    try:
+        result = uuid.UUID(user_id_str)
+        print(f"Successfully converted '{user_id_str}' to UUID: {result}")
+        return result
+    except ValueError as e:
+        print(f"Failed to convert '{user_id_str}' with error: {e}")
+        namespace = uuid.NAMESPACE_DNS
+        new_uuid = uuid.uuid5(namespace, user_id_str)
+        print(f"Converted '{user_id_str}' to deterministic UUID: {new_uuid}")
+        return new_uuid
+
+def initialize_student_profile(db: Session, student_id_str: str) -> StudentProfile:
+        # Convert the student_id string to a UUID (using your helper logic)
+        try:
+            uuid_student_id = uuid.UUID(student_id_str)
+        except ValueError:
+            uuid_student_id = uuid.uuid5(uuid.NAMESPACE_DNS, student_id_str)
+        
+        # Check if the student profile exists
+        student_profile = db.query(StudentProfile).filter(
+            StudentProfile.user_id == uuid_student_id
+        ).first()
+        
+        # Create the profile if it doesn't exist
+        if not student_profile:
+            student_profile = StudentProfile(user_id=uuid_student_id)
+            db.add(student_profile)
+            db.flush()  # Get the ID assigned
+            # Optionally, initialize other related records here
+            db.commit()
+            print(f"Created new student profile for {uuid_student_id}")
+        else:
+            print(f"Found existing student profile for {uuid_student_id}")
+        return student_profile

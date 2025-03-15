@@ -34,8 +34,8 @@ export default function RootLayout({
               <Link href="/roadmap" className="transition-colors hover:text-foreground/80">
                 Roadmap
               </Link>
-              <Link href="/chat" className="transition-colors hover:text-foreground/80">
-                AI Chat
+              <Link href="/profile" className="transition-colors hover:text-foreground/80">
+                Profile
               </Link>
             </nav>
           </div>
