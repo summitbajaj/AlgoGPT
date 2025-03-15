@@ -1,7 +1,7 @@
 import React, { createContext, useContext, useRef, useEffect, useState } from 'react';
 import { useToast } from "@/components/ui/use-toast";
 
-interface WebSocketContextType {
+export interface WebSocketContextType {
   sendChatMessage: (message: string) => void;
   sendCodeUpdate: (code: string) => void;
   isConnected: boolean;
@@ -103,13 +103,16 @@ export const WebSocketProvider: React.FC<{
   // Send a code update to the WebSocket server
   const sendCodeUpdate = (code: string) => {
     if (wsRef.current?.readyState === WebSocket.OPEN) {
+      console.log("Sending code update:", code);
       wsRef.current.send(JSON.stringify({
         type: "code_update",
         code: code
       }));
+    } else {
+      console.warn("WebSocket is not open. Cannot send code update.");
     }
-    // No toast for code updates as they're silent operations
   };
+  
 
   return (
     <WebSocketContext.Provider value={{ sendChatMessage, sendCodeUpdate, isConnected }}>

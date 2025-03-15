@@ -15,8 +15,14 @@ import {
 import { createUserConfig } from '../config/config';
 import { runCode, submitCode } from '../utils/api/api';
 import * as monaco from 'monaco-editor';
-import { PostRunCodeRequest, PostRunCodeResponse, RunCodeTestCase, SubmitCodeRequest, SubmitCodeResponse } from '../utils/api/types';
-import { useWebSocket } from '../context/WebSocketContext';
+import {
+  PostRunCodeRequest,
+  PostRunCodeResponse,
+  RunCodeTestCase,
+  SubmitCodeRequest,
+  SubmitCodeResponse
+} from '../utils/api/types';
+import { useWebSocket, WebSocketContextType } from '../context/WebSocketContext';
 import { debounce } from 'lodash'; 
 
 interface PythonEditorProps {
@@ -28,13 +34,31 @@ interface PythonEditorProps {
   disableWebSocket?: boolean; // New prop to make WebSocket optional
 }
 
+/**
+ * A helper hook that returns the WebSocket context if available,
+ * otherwise returns a fallback object to prevent errors.
+ */
+function useOptionalWebSocket(): WebSocketContextType {
+  try {
+    return useWebSocket();
+  } catch {
+    return {
+      sendChatMessage: () => {},
+      sendCodeUpdate: () => {},
+      isConnected: false,
+    };
+  }
+}
+
+
+
 export const PythonEditorComponent: React.FC<PythonEditorProps> = ({
   onRunCodeComplete: onExecutionComplete,
   onSubmitCodeComplete,
   initialCode = "",
   problemId,
   testCaseInputs,
-  disableWebSocket = false // Default to using WebSocket
+  disableWebSocket = false
 }) => {
   const [code, setCode] = useState(initialCode);
   const [lspConnected, setLspConnected] = useState(true);
@@ -42,18 +66,17 @@ export const PythonEditorComponent: React.FC<PythonEditorProps> = ({
   const codeRef = useRef(code);
   const editorRootRef = useRef<ReactDOM.Root | null>(null);
   const wrapperRef = useRef<MonacoEditorLanguageClientWrapper | null>(null);
-  
-  // Always call the hook unconditionally
-  const webSocketContext = useWebSocket();
-  // Then conditionally use its result
+
+  // Always call the hook unconditionally:
+  const webSocketContext = useOptionalWebSocket();
+  // Provide no-op if WebSocket updates are disabled
   const sendCodeUpdate = disableWebSocket ? () => {} : webSocketContext.sendCodeUpdate;
-  
-  // Create refs outside of effects for the submit button and its handler
+
+  // Create refs outside of effects for the submit/run buttons and handlers
   const submitButtonRef = useRef<HTMLElement | null>(null);
   const runButtonRef = useRef<HTMLElement | null>(null);
 
-  // Create a debounced version of the sendCodeUpdate function
-  // This will only send code updates after the user stops typing for 1 second
+  // Debounce the sendCodeUpdate function (1 second).
   const debouncedSendCodeUpdate = useRef(
     debounce((codeToSend: string) => {
       if (!disableWebSocket) {
@@ -62,29 +85,27 @@ export const PythonEditorComponent: React.FC<PythonEditorProps> = ({
     }, 1000)
   ).current;
 
-  // Keep refs in sync with state and send code updates
+  // Keep codeRef in sync with state changes
   useEffect(() => {
     codeRef.current = code;
-    
-    // Only send non-empty code after editor is initialized and if WebSocket is enabled
     if (code && code !== initialCode && editorInitialized && !disableWebSocket) {
       debouncedSendCodeUpdate(code);
     }
   }, [code, debouncedSendCodeUpdate, initialCode, editorInitialized, disableWebSocket]);
 
-  // Update code when initialCode prop changes
+  // Update code if initialCode prop changes
   useEffect(() => {
     setCode(initialCode);
   }, [initialCode]);
 
-  // Clean up the debouncer on unmount
+  // Cleanup the debouncer on unmount
   useEffect(() => {
     return () => {
       debouncedSendCodeUpdate.cancel();
     };
   }, [debouncedSendCodeUpdate]);
 
-  // Define handlers for run and submit outside of effects
+  // Handlers for run and submit
   const handleRunCode = useCallback(async () => {
     try {
       const request: PostRunCodeRequest = {
@@ -96,8 +117,6 @@ export const PythonEditorComponent: React.FC<PythonEditorProps> = ({
       onExecutionComplete?.(response);
     } catch (error) {
       console.error('Failed to run code:', error);
-      
-      // Provide a default CodeExecutionResponse on error
       onExecutionComplete?.({
         test_results: [],
       });
@@ -117,7 +136,7 @@ export const PythonEditorComponent: React.FC<PythonEditorProps> = ({
     }
   }, [onSubmitCodeComplete, problemId]);
 
-  // Handle run button click
+  // Listen for run button clicks
   useEffect(() => {
     const runButton = document.querySelector('#button-run');
     runButtonRef.current = runButton as HTMLElement;
@@ -125,7 +144,6 @@ export const PythonEditorComponent: React.FC<PythonEditorProps> = ({
     if (runButtonRef.current) {
       runButtonRef.current.addEventListener('click', handleRunCode);
     }
-  
     return () => {
       if (runButtonRef.current) {
         runButtonRef.current.removeEventListener('click', handleRunCode);
@@ -133,15 +151,14 @@ export const PythonEditorComponent: React.FC<PythonEditorProps> = ({
     };
   }, [handleRunCode]);
   
-  // Handle submit button click
+  // Listen for submit button clicks
   useEffect(() => {
     const submitButton = document.querySelector('#button-submit');
     submitButtonRef.current = submitButton as HTMLElement;
-    
+
     if (submitButtonRef.current) {
       submitButtonRef.current.addEventListener('click', handleSubmitCode);
     }
-  
     return () => {
       if (submitButtonRef.current) {
         submitButtonRef.current.removeEventListener('click', handleSubmitCode);
@@ -149,29 +166,21 @@ export const PythonEditorComponent: React.FC<PythonEditorProps> = ({
     };
   }, [handleSubmitCode]);
 
-  // Force editor reinitialization when problemId changes
+  // Reinitialize the editor when problemId changes
   useEffect(() => {
-    // Reset editor state
     setEditorInitialized(false);
-    
-    // Clean up existing editor
     if (wrapperRef.current) {
       wrapperRef.current.dispose();
       wrapperRef.current = null;
     }
-    
-    // Clean up existing root
     if (editorRootRef.current) {
       editorRootRef.current.unmount();
       editorRootRef.current = null;
     }
-    
-    // Reset code to initial state
     setCode(initialCode);
-    
   }, [problemId, initialCode]);
 
-  // Initialize editor based on LSP connection status
+  // Initialize with LSP first
   useEffect(() => {
     if (editorInitialized) return;
 
@@ -207,34 +216,28 @@ export const PythonEditorComponent: React.FC<PythonEditorProps> = ({
                 
                 const editor = wrapper.getEditor();
                 if (editor) {
-                  // Reduce delay for faster folding if possible
+                  // Attempt to fold import statements after a short delay
                   setTimeout(() => {
                     const model = editor.getModel();
                     if (!model) return;
-              
-                    // Determine the block of import statements.
                     const lines = model.getLinesContent();
                     let endLine = 0;
                     for (let i = 0; i < lines.length; i++) {
                       if (lines[i].startsWith("import") || lines[i].startsWith("from")) {
                         endLine = i + 1;
                       } else if (endLine > 0) {
-                        // break if the import block has ended
-                        break;
+                        break; // End of the import block
                       }
                     }
-                    // Fold if we found more than one line in the import block.
                     if (endLine > 1) {
-                      // Set the selection that covers the import block.
                       editor.setSelection(new monaco.Selection(1, 1, endLine, 1));
-                      // Run the fold command for the selected region.
                       editor.getAction("editor.fold")?.run();
                     }
                   }, 50);
                 }
               }}
-              onError={(e) => {
-                console.error('Editor error:', e);
+              onError={(editorError) => {
+                console.error('Editor error:', editorError);
               }}
             />
           </div>
@@ -263,20 +266,23 @@ export const PythonEditorComponent: React.FC<PythonEditorProps> = ({
         fileSystemProvider.registerFile(new RegisteredMemoryFile(fileUri, code));
         registerFileSystemOverlay(1, fileSystemProvider);
         
-        const wrapperConfig = createUserConfig('/workspace', code, `/workspace/problem-${problemId}.py`);        
+        const wrapperConfig = createUserConfig(
+          '/workspace',
+          code,
+          `/workspace/problem-${problemId}.py`
+        );        
         renderEditor(wrapperConfig);
         setEditorInitialized(true);
-      } catch (err) {
-        console.error('Failed to initialize editor with LSP:', err);
+      } catch (initError) {
+        console.error('Failed to initialize editor with LSP:', initError);
         setLspConnected(false);
-        // We'll let the next useEffect handle the fallback initialization
       }
     };
 
     initializeEditor(initialCode);
   }, [editorInitialized, initialCode, lspConnected, problemId]);
 
-  // Handle fallback to basic mode if LSP connection fails
+  // If LSP fails and we haven't initialized the editor, fall back to basic mode
   useEffect(() => {
     if (!lspConnected && !wrapperRef.current && !editorInitialized) {
       const initializeEditorWithoutLSP = (code: string) => {
@@ -312,8 +318,8 @@ export const PythonEditorComponent: React.FC<PythonEditorProps> = ({
                   wrapperRef.current = wrapper;
                   console.log(`Basic mode loaded:\n${wrapper.reportStatus().join('\n')}`);
                 }}
-                onError={(e) => {
-                  console.error('Editor error in basic mode:', e);
+                onError={(editorError) => {
+                  console.error('Editor error in basic mode:', editorError);
                 }}
               />
             </div>
