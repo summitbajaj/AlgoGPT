@@ -59,14 +59,26 @@ class AITutorChatbot:
     
     def _create_system_prompt(self, state: ChatState):
         """Create the system prompt using problem context and code history."""
+        # Debug user code state
+        print(f"Creating system prompt with user_code length: {len(state.get('user_code', ''))}")
+        print(f"Code history length: {len(state.get('code_history', []))}")
+        
         system_content = f"""You are an expert AI coding tutor for AlgoGPT specializing in data structures and algorithms. Your role is to help students who struggle with these topics by guiding them through problem-solving rather than simply providing the full answer. Use the following problem context to prompt them towards logical reasoning and incremental improvements: {state['problem_context']}
 
-        The student's current code is:\n```\n{state['user_code']}\n```\nRefer to this code when they ask about improvements, bugs, or optimizations. Additionally, the student has a history of code versions, which you can use to provide feedback on their progress. Here is the code history (from oldest to newest):\n"""
+        """
         
+        # Only add code reference if we have code
+        if state.get('user_code'):
+            system_content += f"The student's current code is:\n```\n{state['user_code']}\n```\n"
+            system_content += "Refer to this code when they ask about improvements, bugs, or optimizations. "
+        
+        # Only add history if we have it
         if state.get("code_history", []):
+            system_content += "Additionally, the student has a history of code versions, which you can use to provide feedback on their progress. Here is the code history (from oldest to newest):\n\n"
             system_content += "Code History:\n"
             for i, version in enumerate(state["code_history"], 1):
-                system_content += f"Version {i} (at {version['timestamp']}):\n```\n{version['code']}\n```\n"
+                if isinstance(version, dict) and 'code' in version and 'timestamp' in version:
+                    system_content += f"Version {i} (at {version['timestamp']}):\n```\n{version['code']}\n```\n"
         
         base_instructions = """Encourage the student to think critically by asking clarifying questions, offering hints, and explaining the underlying concepts. Your guidance should empower them to understand and work towards an optimal solution on their own, rather than receiving a complete answer upfront. When providing feedback, compare the current code to previous versions to highlight improvements, regressions, or areas for optimization."""
         
@@ -77,6 +89,8 @@ class AITutorChatbot:
                 base_instructions += f"\n\n{improvement.instruction}"
         
         system_content += base_instructions
+        print(f"System prompt created with length: {len(system_content)}")
+        
         return system_content
     
     def _initialize_state(self, state: ChatState):
@@ -319,33 +333,51 @@ class AITutorChatbot:
     
     def _update_code_node(self, state: ChatState):
         """Update the student's code in the state."""
+        print("_update_code_node called")
+        
+        if not state["messages"]:
+            return state
+            
         last_message = state["messages"][-1]
+        
         try:
-            message_data = json.loads(last_message.content)
-            if message_data["type"] == "code_update":
-                new_code = message_data["code"]
+            # Parse the message content
+            if isinstance(last_message.content, str):
+                message_data = json.loads(last_message.content)
                 
-                # Only add to history if the code is different
-                if new_code != state["user_code"]:
-                    timestamp = datetime.now().isoformat()
-                    new_history = state["code_history"] + [{"code": new_code, "timestamp": timestamp}]
+                if message_data.get("type") == "code_update":
+                    # Extract the code
+                    new_code = message_data.get("code", "")
+                    print(f"Updating code: {len(new_code)} characters")
                     
-                    # Store code snapshot in database if possible
+                    # Update the state
+                    updated_state = {
+                        **state,
+                        "user_code": new_code
+                    }
+                    
+                    # Store simple history if needed
+                    if "code_history" not in updated_state:
+                        updated_state["code_history"] = []
+                    
+                    # Optional: add to history if desired
+                    # updated_state["code_history"].append({"code": new_code})
+                    
+                    # Store in database if needed
                     if self.db_ops and state.get("session_id"):
-                        self.db_ops.add_code_snapshot(
-                            uuid.UUID(state["session_id"]),
-                            new_code
-                        )
-                else:
-                    new_history = state["code_history"]
-                
-                return {
-                    **state,
-                    "user_code": new_code,
-                    "code_history": new_history
-                }
-        except:
-            pass
+                        try:
+                            self.db_ops.add_code_snapshot(
+                                uuid.UUID(state["session_id"]),
+                                new_code
+                            )
+                        except Exception as e:
+                            print(f"Failed to store code in database: {e}")
+                    
+                    return updated_state
+        except Exception as e:
+            print(f"Error in _update_code_node: {e}")
+        
+        # Return unchanged state if we couldn't update
         return state
     
     def _route_node(self, state: ChatState):
@@ -363,15 +395,28 @@ class AITutorChatbot:
             return "chatbot"
             
         last_message = state["messages"][-1]
-        try:
-            message_data = json.loads(last_message.content)
-            message_type = message_data.get("type")
-            if message_type == "chat":
-                return "chatbot"
-            elif message_type == "code_update":
-                return "update_code"
-        except:
+        
+        # Check if it's an AIMessage - AI messages don't need parsing
+        if isinstance(last_message, AIMessage):
             return "chatbot"
+            
+        # It's a HumanMessage - try to determine its type
+        try:
+            # Check if content is a string that can be parsed as JSON
+            if isinstance(last_message.content, str):
+                message_data = json.loads(last_message.content)
+                message_type = message_data.get("type")
+                
+                if message_type == "code_update":
+                    return "update_code"
+                elif message_type == "chat":
+                    return "chatbot"
+        except Exception as e:
+            print(f"Error in _route_node: {e}")
+            # If we can't parse it or it's not a recognized type, default to chatbot
+            pass
+            
+        # Default to chatbot for any unhandled cases
         return "chatbot"
     
     def _create_graph(self):
@@ -419,9 +464,11 @@ class AITutorChatbot:
             }
         )
         
+        # IMPORTANT: Add edge from update_code to END
+        # This allows code updates to exit the graph after being processed
         graph_builder.add_edge("update_code", END)
         
-        # Compile the graph without the checkpointer - this is the key change
+        # Compile the graph
         return graph_builder.compile()
     
     def invoke(self, state: ChatState):

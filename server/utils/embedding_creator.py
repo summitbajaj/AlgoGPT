@@ -5,24 +5,18 @@ from database.models import Problem, ProblemEmbedding
 from database.database import SessionLocal
 import numpy as np
 from pgvector.sqlalchemy import Vector
-# from langchain_openai import AzureOpenAIEmbeddings
-from langchain_openai import OpenAIEmbeddings
+from langchain_openai import AzureOpenAIEmbeddings
 from dotenv import load_dotenv
 
 # Load environment variables
 load_dotenv()
 
 # Initialize embeddings model
-# embedding_model = AzureOpenAIEmbeddings(
-#     azure_deployment=os.getenv("AZURE_OPENAI_EMBEDDING_DEPLOYMENT", "text-embedding-ada-002"),
-#     azure_endpoint=os.getenv("AZURE_OPENAI_ENDPOINT"),
-#     api_key=os.getenv("AZURE_OPENAI_KEY"),
-#     api_version=os.getenv("AZURE_OPENAI_VERSION")
-# )
-
-embedding_model = OpenAIEmbeddings(
-    model="text-embedding-3-small",
-    openai_api_key=os.getenv("OPENAI_MY_KEY") 
+embedding_model = AzureOpenAIEmbeddings(
+    azure_deployment=os.getenv("AZURE_OPENAI_EMBEDDING_DEPLOYMENT", "text-embedding-ada-002"),
+    azure_endpoint=os.getenv("AZURE_OPENAI_ENDPOINT"),
+    api_key=os.getenv("AZURE_OPENAI_KEY"),
+    api_version=os.getenv("AZURE_OPENAI_VERSION")
 )
 
 def create_problem_embedding(problem_id: int) -> Dict[str, Any]:

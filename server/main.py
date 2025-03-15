@@ -16,6 +16,8 @@ from agents.question_generator_agent import generate_new_problem
 from utils.embedding_creator import create_embedding_after_generation
 from profiling_api import register_profiling_api
 from uuid import UUID
+import datetime
+import uuid
 
 # Add shared_resources to Python path
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "shared_resources")))
@@ -399,13 +401,13 @@ async def websocket_chat(
     await websocket.accept()
     connection_id = f"{user_id}_{problem_id}"
     active_connections[connection_id] = websocket
-    
+
     # Create a dedicated chatbot instance for this connection
     chatbot_instances[connection_id] = AITutorChatbot(db=db)
-    
+
     # Initialize chat state with empty messages
     chat_state = None
-    
+
     try:
         while True:
             data = await websocket.receive_text()
@@ -418,43 +420,105 @@ async def websocket_chat(
                     await websocket.send_json({"error": "user_message is required"})
                     continue
                 message_content = json.dumps({"type": "chat", "content": user_message})
+                human_message = HumanMessage(content=message_content)
+                
+                # Initialize chat state if this is the first message
+                if chat_state is None:
+                    problem_context = get_problem_context_for_ai(db, int(problem_id))
+                    if not problem_context:
+                        await websocket.send_json({"error": "Problem not found"})
+                        continue
+                    
+                    chat_state = {
+                        "messages": [human_message],
+                        "problem_context": problem_context,
+                        "user_code": "",
+                        "code_history": [],
+                        "student_id": user_id,
+                        "problem_id": int(problem_id)
+                    }
+                else:
+                    chat_state["messages"].append(human_message)
+                
+                # Process through the chatbot normally
+                chat_state = chatbot_instances[connection_id].invoke(chat_state)
+                
+                # Extract the AI's response
+                last_message = chat_state["messages"][-1]
+                if isinstance(last_message, AIMessage):
+                    await websocket.send_json({"answer": last_message.content})
+            
             elif message_type == "code_update":
                 user_code = message_data.get("code", "")
+                print(f"Received code update. Code length: {len(user_code)}")
+                
                 if not user_code:
-                    continue
-                message_content = json.dumps({"type": "code_update", "code": user_code})
-            else:
-                continue
-            
-            human_message = HumanMessage(content=message_content)
-            
-            # Initialize chat state if this is the first message
-            if chat_state is None:
-                problem_context = get_problem_context_for_ai(db, int(problem_id))
-                if not problem_context:
-                    await websocket.send_json({"error": "Problem not found"})
+                    await websocket.send_json({"error": "code is required for code_update"})
                     continue
                 
-                chat_state = {
-                    "messages": [human_message],
-                    "problem_context": problem_context,
-                    "user_code": "",
-                    "code_history": [],
-                    "student_id": user_id,
-                    "problem_id": int(problem_id)
-                }
+                # Initialize chat state if this is the first message
+                if chat_state is None:
+                    problem_context = get_problem_context_for_ai(db, int(problem_id))
+                    if not problem_context:
+                        await websocket.send_json({"error": "Problem not found"})
+                        continue
+                    
+                    chat_state = {
+                        "messages": [],
+                        "problem_context": problem_context,
+                        "user_code": "",  # Start with empty code
+                        "code_history": [],
+                        "student_id": user_id,
+                        "problem_id": int(problem_id)
+                    }
+                
+                # Save the original messages so we can restore them
+                original_messages = chat_state.get("messages", [])
+                
+                # Create a message for the graph system
+                message_content = json.dumps({"type": "code_update", "code": user_code})
+                human_message = HumanMessage(content=message_content)
+                
+                # Create a clean state with just the code update message
+                # This ensures the graph routes properly to the update_code node
+                chat_state["messages"] = [human_message]
+                
+                try:
+                    # Process through the graph
+                    updated_state = chatbot_instances[connection_id].invoke(chat_state)
+                    
+                    # If graph processing somehow failed to update the code, do it directly
+                    if not updated_state.get("user_code"):
+                        updated_state["user_code"] = user_code
+                        print("Graph didn't update code, doing it directly")
+                    
+                    # Restore the original messages
+                    updated_state["messages"] = original_messages
+                    
+                    # Update our chat state
+                    chat_state = updated_state
+                    
+                    # Acknowledge the update
+                    await websocket.send_json({
+                        "status": "code_updated", 
+                        "code_length": len(user_code)
+                    })
+                except Exception as e:
+                    print(f"Error processing code update: {e}")
+                    # If graph processing failed, still update the code directly
+                    chat_state["user_code"] = user_code
+                    chat_state["messages"] = original_messages
+                    
+                    await websocket.send_json({
+                        "status": "code_updated", 
+                        "code_length": len(user_code),
+                        "warning": "Graph processing failed but code was updated"
+                    })
+            
             else:
-                # Update existing chat state with the new message
-                chat_state["messages"].append(human_message)
-            
-            # Process through the chatbot
-            chat_state = chatbot_instances[connection_id].invoke(chat_state)
-            
-            # Extract the AI's response
-            last_message = chat_state["messages"][-1]
-            if isinstance(last_message, AIMessage):
-                await websocket.send_json({"answer": last_message.content})
-    
+                await websocket.send_json({"error": f"Unknown message type: {message_type}"})
+                continue
+
     except WebSocketDisconnect:
         if connection_id in active_connections:
             del active_connections[connection_id]
@@ -469,7 +533,6 @@ async def websocket_chat(
             del active_connections[connection_id]
         if connection_id in chatbot_instances:
             del chatbot_instances[connection_id]
-
 
 # Get available topics endpoint
 @app.get("/topics", response_model=TopicListResponse)
