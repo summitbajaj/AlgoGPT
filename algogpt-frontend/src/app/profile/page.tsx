@@ -1,3 +1,4 @@
+// app/profile/page.tsx
 "use client"
 
 import { useState, useEffect } from "react"
@@ -20,7 +21,9 @@ import {
   CheckCircle,
   Star,
 } from "lucide-react"
-import CurriculumProgress from "../components/profile/CurriculumProgress"
+import CurriculumProgress from "@/app/components/profile/CurriculumProgress"
+import ProtectedRoute from "@/app/components/ProtectedRoute"
+import { useAuth } from "@/firebase/AuthContext"
 
 interface TopicMastery {
   topic_name: string;
@@ -64,7 +67,16 @@ const recentActivities = [
 ];
 
 export default function ProfilePage() {
+  return (
+    <ProtectedRoute>
+      <ProfileContent />
+    </ProtectedRoute>
+  );
+}
+
+function ProfileContent() {
   const router = useRouter();
+  const { user } = useAuth();
   const [isLoading, setIsLoading] = useState(true);
   const [assessmentData, setAssessmentData] = useState<AssessmentData | null>(null);
 
@@ -72,8 +84,8 @@ export default function ProfilePage() {
     const fetchAssessmentData = async () => {
       setIsLoading(true);
       try {
-        // Replace with your actual API endpoint and student ID
-        const userId = "user129"; // This should come from your auth system
+        // Use the Firebase auth user ID instead of hardcoded value
+        const userId = user?.uid || "user129"; // Fallback to ensure the API call works
         const response = await fetch(`http://localhost:8000/api/profiling/student/${userId}/assessment`);        
         if (response.ok) {
           const data = await response.json();
@@ -89,8 +101,10 @@ export default function ProfilePage() {
       }
     };
 
-    fetchAssessmentData();
-  }, []);
+    if (user) {
+      fetchAssessmentData();
+    }
+  }, [user]);
 
   const handleStartProfiling = () => {
     // Navigate to the profiling assessment page
@@ -202,8 +216,10 @@ export default function ProfilePage() {
                 <div className="h-24 w-24 rounded-full bg-slate-200 flex items-center justify-center mb-4">
                   <User className="h-12 w-12 text-slate-400" />
                 </div>
-                <h2 className="text-xl font-bold">Jane Smith</h2>
-                <p className="text-sm text-muted-foreground">Student at University of Technology</p>
+                <h2 className="text-xl font-bold">{user?.email?.split('@')[0] || "User"}</h2>
+                <p className="text-sm text-muted-foreground">
+                  {user?.email || "Loading user info..."}
+                </p>
               </div>
               
               <div className="space-y-4 pt-4 border-t">
@@ -684,10 +700,10 @@ function getStruggleAdvice(area: string): string {
     "Edge Case Handling": "Make a habit of systematically checking for edge cases before submitting your solutions. Consider creating a personal edge case checklist.",
     "edge_case_handling": "Make a habit of systematically checking for edge cases before submitting your solutions. Consider creating a personal edge case checklist.",
     "Code Efficiency": "Study time and space complexity to identify optimization opportunities in your code. Work through our &apos;Optimization Patterns&apos; module.",
-    "code_efficiency": "Study time and space complexity to identify optimization opportunities in your code. Work through our &apos;Optimization Patterns&apos; module.",
-    "Time/Space Optimization": "Study time and space complexity to identify optimization opportunities in your code. Work through our &apos;Optimization Patterns&apos; module.",
+    "code_efficiency": "Study time and space complexity to identify optimization opportunities in your code. Work through our 'Optimization Patterns' module.",
+    "Time/Space Optimization": "Study time and space complexity to identify optimization opportunities in your code. Work through our 'Optimization Patterns' module.",
     "Logic Implementation": "Break down your solutions into smaller steps and verify each part independently. Our step-by-step debugging guide may help.",
-    "Algorithm Selection": "Practice identifying which algorithmic technique to apply to different problem types. Review our &apos;Algorithm Selection Guide&apos;."
+    "Algorithm Selection": "Practice identifying which algorithmic technique to apply to different problem types. Review our 'Algorithm Selection Guide'."
   };
   
   return adviceMap[area] || "Review this concept in our learning materials to strengthen your understanding.";
