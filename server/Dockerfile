@@ -18,6 +18,8 @@ COPY . .
 
 # Run as non-root user
 RUN useradd -m appuser
+# Change ownership of the application files to appuser
+RUN chown -R appuser:appuser /server
 USER appuser
 
 # Run the FastAPI server
