@@ -24,6 +24,7 @@ interface CodeSectionProps {
   onAddTestCase?: () => void;
   onRemoveTestCase?: (index: number) => void;
   disableWebSocket?: boolean; 
+  userId: string;
 }
 
 export function CodeSection({
@@ -40,7 +41,8 @@ export function CodeSection({
   testCaseInputs,
   onAddTestCase,
   onRemoveTestCase,
-  disableWebSocket = false, // Default to false
+  disableWebSocket = false, // Default to false,
+  userId,
 }: CodeSectionProps) {
 
   const [hasRun, setHasRun] = useState(false);
@@ -142,6 +144,7 @@ export function CodeSection({
                       input: parsed as Record<string, never>,
                     };
                   })}
+                  userId = {userId}
                 />
               </div>
             </Card>

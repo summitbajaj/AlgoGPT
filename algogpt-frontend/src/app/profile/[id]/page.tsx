@@ -19,6 +19,7 @@ import { JsonValue } from "@/app/components/profile/SubmissionReviewModal";
 import SubmissionReviewModal from "@/app/components/profile/SubmissionReviewModal";
 import AssessmentResults, { AssessmentResult } from "@/app/components/profile/AssesmentResultComponent";
 
+import { useAuth } from "@/firebase/AuthContext";
 interface SubmissionReview {
   status: string;
   code: string;
@@ -68,7 +69,10 @@ export default function ProfilingPage() {
   const [showProgressBar, setShowProgressBar] = useState(false);
   const [progressPercent, setProgressPercent] = useState(0);
 
-  const userId = "user129";
+  // Using the AuthContext to get the user ID
+  const { user } = useAuth();
+  const userId = user?.uid || "anonymous"; 
+
   const mounted = useRef(true);
 
   // ----------------------------------
@@ -466,6 +470,7 @@ export default function ProfilingPage() {
               onAddTestCase={handleAddTestCase}
               onRemoveTestCase={handleRemoveTestCase}
               disableWebSocket={true}
+              userId={userId}
             />
 
             {/* Local progress bar below code if not overlaying */}
