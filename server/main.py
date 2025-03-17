@@ -171,6 +171,7 @@ def execute_code(request: SubmitCodeRequest, db: Session = Depends(get_db)):
         problem_id=request.problem_id,
         source_code=request.source_code,
         test_results=test_results,
+        user_id=request.user_id,
         status=status
     )
 

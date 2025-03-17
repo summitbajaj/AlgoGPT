@@ -18,6 +18,7 @@ class SubmitCodeTestResult(RunCodeTestCase):
 
 # @app.post("/submit-code") endpoint
 class SubmitCodeRequest(BaseModel):
+    user_id: str
     source_code: str
     problem_id: int
 class SubmitCodeExecutionPayload(SubmitCodeRequest):
