@@ -21,7 +21,9 @@ class SubmitCodeRequest(BaseModel):
     user_id: str
     source_code: str
     problem_id: int
-class SubmitCodeExecutionPayload(SubmitCodeRequest):
+class SubmitCodeExecutionPayload(BaseModel):
+    source_code: str
+    problem_id: int
     function_name: str
     test_cases: List[SubmitCodeTestCase] 
 class SubmitCodeResponse(BaseModel):
