@@ -13,7 +13,7 @@ export default function LoginPage() {
     try {
       setIsLoading(true);
       await signInWithGoogle();
-      router.push('/dashboard');
+      router.push('/profile');
     } catch (error: unknown) {
       if (error instanceof Error) {
         setError(error.message);
