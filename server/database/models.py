@@ -123,6 +123,7 @@ class Submission(Base):
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4, index=True)
 
     problem_id = Column(Integer, ForeignKey("problems.id"), index=True, nullable=False)
+    # user_id is a string because firestore uses unique strings for IDs
     user_id = Column(String, nullable=False, index=True)
     source_code = Column(Text, nullable=False)
     submission_time = Column(DateTime, default=datetime.utcnow)
@@ -172,8 +173,8 @@ class SubmissionTestResult(Base):
 class StudentProfile(Base):
     __tablename__ = "student_profiles"
     
-    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
-    user_id = Column(UUID(as_uuid=True), nullable=False, index=True)  # Foreign key to your users table
+    # Using Firestore ID as primary key
+    id = Column(String, primary_key=True)  
     created_at = Column(DateTime, default=datetime.utcnow)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
     
@@ -184,9 +185,8 @@ class StudentProfile(Base):
 class StudentTopicMastery(Base):
     __tablename__ = "student_topic_mastery"
     
-    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
-    student_profile_id = Column(UUID(as_uuid=True), ForeignKey("student_profiles.id"), nullable=False)
-    topic_id = Column(Integer, ForeignKey("topics.id"), nullable=False)
+    student_profile_id = Column(String, ForeignKey("student_profiles.id"), primary_key=True)
+    topic_id = Column(Integer, ForeignKey("topics.id"), primary_key=True)
     mastery_level = Column(Float, nullable=False, default=0.0)
     problems_attempted = Column(Integer, default=0)
     problems_solved = Column(Integer, default=0)
@@ -197,18 +197,13 @@ class StudentTopicMastery(Base):
     # Relationships
     student_profile = relationship("StudentProfile", back_populates="topic_mastery")
     topic = relationship("Topic")
-    
-    # Unique constraint
-    __table_args__ = (
-        UniqueConstraint('student_profile_id', 'topic_id', name='uix_student_topic'),
-    )
 
 # Student attempt tracking
 class StudentAttempt(Base):
     __tablename__ = "student_attempts"
     
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
-    student_id = Column(UUID(as_uuid=True), nullable=False, index=True)  # Your users table ID
+    student_id = Column(String, nullable=False, index=True)
     problem_id = Column(Integer, ForeignKey("problems.id"), nullable=False)
     start_time = Column(DateTime, default=datetime.utcnow)
     end_time = Column(DateTime, nullable=True)
@@ -262,7 +257,7 @@ class ChatSession(Base):
     __tablename__ = "chat_sessions"
     
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
-    student_id = Column(UUID(as_uuid=True), ForeignKey("student_profiles.id"), nullable=False)
+    student_id = Column(String, ForeignKey("student_profiles.id"), nullable=False, index=True)
     problem_id = Column(Integer, ForeignKey("problems.id"), nullable=False)
     start_time = Column(DateTime, default=datetime.utcnow)
     end_time = Column(DateTime, nullable=True)
