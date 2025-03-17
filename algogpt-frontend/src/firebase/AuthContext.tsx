@@ -7,23 +7,24 @@ import {
   onAuthStateChanged,
   signInWithPopup,
   GoogleAuthProvider,
-  GithubAuthProvider 
+  GithubAuthProvider,
+  UserCredential
 } from 'firebase/auth';
 import { auth } from './firebase';
 
 interface AuthContextType {
   user: User | null;
   loading: boolean;
-  signInWithGoogle: () => Promise<any>;
-  signInWithGithub: () => Promise<any>;
+  signInWithGoogle: () => Promise<UserCredential>;
+  signInWithGithub: () => Promise<UserCredential>;
   logout: () => Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextType>({
   user: null,
   loading: true,
-  signInWithGoogle: async () => {},
-  signInWithGithub: async () => {},
+  signInWithGoogle: async () => ({} as UserCredential),
+  signInWithGithub: async () => ({} as UserCredential),
   logout: async () => {},
 });
 
