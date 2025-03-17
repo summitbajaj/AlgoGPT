@@ -10,8 +10,6 @@
     "generate-api-types": "npx openapi-typescript http://localhost:8000/openapi.json -o src/app/utils/api/api_types.ts"
   },
   "dependencies": {
-    "@codingame/monaco-vscode-languages-service-override": "0.4.2",
-    "@codingame/monaco-vscode-log-service-override": "0.4.0",
     "@codingame/monaco-vscode-python-default-extension": "^10.1.4",
     "@monaco-editor/react": "^4.6.0",
     "@typefox/monaco-editor-react": "^6.0.0-next.6",
