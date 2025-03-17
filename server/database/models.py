@@ -123,6 +123,7 @@ class Submission(Base):
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4, index=True)
 
     problem_id = Column(Integer, ForeignKey("problems.id"), index=True, nullable=False)
+    user_id = Column(UUID(as_uuid=True), nullable=False, index=True)
     source_code = Column(Text, nullable=False)
     submission_time = Column(DateTime, default=datetime.utcnow)
 

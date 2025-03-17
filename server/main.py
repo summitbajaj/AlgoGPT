@@ -11,7 +11,7 @@ from agents.ai_chatbot import AITutorChatbot
 from langchain_core.messages import HumanMessage, AIMessage
 import sys
 import json
-from agents.ai_complexity_analyzer import AIComplexityAnalyzer, should_enhance_with_ai
+from agents.ai_complexity_analyzer import AIComplexityAnalyzer
 from agents.question_generator_agent import generate_new_problem
 from utils.embedding_creator import create_embedding_after_generation
 from profiling_api import register_profiling_api
