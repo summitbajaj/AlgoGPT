@@ -1,4 +1,3 @@
-// app/profile/page.tsx
 "use client"
 
 import { useState, useEffect } from "react"
@@ -85,7 +84,7 @@ function ProfileContent() {
       setIsLoading(true);
       try {
         // Use the Firebase auth user ID instead of hardcoded value
-        const userId = user?.uid || "user129"; // Fallback to ensure the API call works
+        const userId = user?.uid || "anonymous"; // Fallback to ensure the API call works
         const response = await fetch(`http://localhost:8000/api/profiling/student/${userId}/assessment`);        
         if (response.ok) {
           const data = await response.json();
