@@ -135,7 +135,7 @@ export const PythonEditorComponent: React.FC<PythonEditorProps> = ({
     } catch (error) {
       console.error('Failed to submit code:', error);
     }
-  }, [onSubmitCodeComplete, problemId]);
+  }, [onSubmitCodeComplete, problemId, userId]);
 
   // Listen for run button clicks
   useEffect(() => {
