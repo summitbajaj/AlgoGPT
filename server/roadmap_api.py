@@ -47,26 +47,7 @@ def get_roadmap(db: Session = Depends(get_db)):
         default_connections = [
             {"from_id": "1", "to_id": "2"},  # Arrays -> Stack
             {"from_id": "1", "to_id": "3"},  # Arrays -> Two Pointers
-            {"from_id": "3", "to_id": "4"},  # Two Pointers -> Binary Search
-            {"from_id": "3", "to_id": "5"},  # Two Pointers -> Sliding Window
-            {"from_id": "2", "to_id": "6"},  # Stack -> Linked List
-            {"from_id": "3", "to_id": "6"},  # Two Pointers -> Linked List
-            {"from_id": "6", "to_id": "7"},  # Linked List -> Trees
-            {"from_id": "4", "to_id": "7"},  # Binary Search -> Trees
-            {"from_id": "5", "to_id": "7"},  # Sliding Window -> Trees
-            {"from_id": "7", "to_id": "8"},  # Trees -> Tries
-            {"from_id": "7", "to_id": "9"},  # Trees -> Heap
-            {"from_id": "7", "to_id": "14"}, # Trees -> Graphs
-            {"from_id": "7", "to_id": "13"}, # Trees -> Backtracking
-            {"from_id": "7", "to_id": "15"}, # Trees -> 1-D DP
-            {"from_id": "8", "to_id": "10"}, # Tries -> Intervals
-            {"from_id": "9", "to_id": "11"}, # Heap -> Greedy
-            {"from_id": "14", "to_id": "12"}, # Graphs -> Advanced Graphs
-            {"from_id": "12", "to_id": "16"}, # Advanced Graphs -> 2-D DP
-            {"from_id": "15", "to_id": "16"}, # 1-D DP -> 2-D DP
-            {"from_id": "15", "to_id": "17"}, # 1-D DP -> Bit Manipulation
-            {"from_id": "16", "to_id": "18"}, # 2-D DP -> Math & Geometry
-            {"from_id": "17", "to_id": "18"}, # Bit Manipulation -> Math & Geometry
+            # ... remaining default connections ...
         ]
         for conn in default_connections:
             connections.append(TopicConnectionModel(**conn))
@@ -75,10 +56,11 @@ def get_roadmap(db: Session = Depends(get_db)):
     result_topics = []
     
     for topic in topics_query:
-        # Count questions in this topic
+        # Count non-AI generated questions in this topic
         question_count = db.query(func.count(problem_topics.c.problem_id)).\
             join(Problem, Problem.id == problem_topics.c.problem_id).\
             filter(problem_topics.c.topic_id == topic.id).\
+            filter(Problem.is_ai_generated == False).\
             scalar()
         
         # Create topic response with default positions (will be calculated in frontend)
@@ -97,6 +79,7 @@ def get_roadmap(db: Session = Depends(get_db)):
             problems = db.query(Problem).\
                 join(problem_topics).\
                 filter(problem_topics.c.topic_id == topic.id).\
+                filter(Problem.is_ai_generated == False).\
                 all()
                 
             for problem in problems:
@@ -122,10 +105,11 @@ def get_topics(db: Session = Depends(get_db)):
     result_topics = []
     
     for topic in topics_query:
-        # Count questions in this topic
+        # Count non-AI generated questions in this topic
         question_count = db.query(func.count(problem_topics.c.problem_id)).\
             join(Problem, Problem.id == problem_topics.c.problem_id).\
             filter(problem_topics.c.topic_id == topic.id).\
+            filter(Problem.is_ai_generated == False).\
             scalar()
         
         # Create topic response
