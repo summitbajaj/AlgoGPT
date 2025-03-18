@@ -35,13 +35,18 @@ SUBMIT_CODE_SERVER_URL = "http://code-runner:5000/submit-code"
 ANALYZE_COMPLEXITY_URL = "http://code-runner:5000/analyze-complexity"
 RUN_CODE_URL = "http://code-runner:5000/run-user-tests"
 
-# ✅ Enable CORS
+# secured cors
+# Get frontend URL from environment variable with localhost fallback
+FRONTEND_URL = os.environ.get("FRONTEND_URL", "http://localhost:3000")
+# Parse multiple frontend URLs if provided as comma-separated list
+ALLOWED_ORIGINS = [origin.strip() for origin in FRONTEND_URL.split(",")]
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],  # Allow all origins (change this in production)
+    allow_origins=ALLOWED_ORIGINS,  # Use environment variable instead of wildcard
     allow_credentials=True,
-    allow_methods=["*"],  # Allow all HTTP methods (GET, POST, etc.)
-    allow_headers=["*"],  # Allow all headers
+    allow_methods=["GET", "POST", "PUT", "DELETE", "OPTIONS"],  # Specify methods explicitly
+    allow_headers=["Content-Type", "Authorization", "X-Requested-With"],  # Specify headers explicitly
 )
 
 # Dependency to get a database session

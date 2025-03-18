@@ -14,10 +14,15 @@ import { toSocket, WebSocketMessageReader, WebSocketMessageWriter } from 'vscode
 import { useConfigureMonacoWorkers } from '../utils/utils';
 
 export const createUserConfig = (workspaceRoot: string, code: string, codeUri: string): WrapperConfig => {
+    // Get the LSP backend URL from environment variables or use localhost as fallback
+    const lspHost = process.env.NEXT_PUBLIC_LSP_HOST || 'localhost';
+    const lspPort = process.env.NEXT_PUBLIC_LSP_PORT || '30001';
+    const lspProtocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+
     const url = createUrl({
-        secured: false,
-        host: 'localhost',
-        port: 30001,
+        secured: lspProtocol === 'wss:',
+        host: lspHost,
+        port: parseInt(lspPort),
         path: 'pyright',
         extraParams: {
             authorization: 'UserAuth'

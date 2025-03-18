@@ -10,10 +10,13 @@ import { LanguageName } from './utils/server-commons.js';
 
 export const runPythonServer = (baseDir: string, relativeDir: string) => {
     const processRunPath = resolve(baseDir, relativeDir);
+
+    // Get port from environment variable or use default 30001
+    const serverPort = parseInt(process.env.PORT || '30001');
     runLanguageServer({
         serverName: 'PYRIGHT',
         pathName: '/pyright',
-        serverPort: 30001,
+        serverPort: serverPort,
         runCommand: LanguageName.node,
         runCommandArgs: [
             processRunPath,

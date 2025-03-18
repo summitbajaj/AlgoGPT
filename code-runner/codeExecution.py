@@ -15,13 +15,20 @@ from shared_resources.schemas import RunCodeExecutionPayload, PostRunCodeRespons
 from complexity_analysis import analyze_complexity
 
 app = FastAPI()
-# Add CORS middleware
+# Add secured CORS middleware
+
+# Get server backend URL from environment variable with default for local development
+SERVER_BACKEND_URL = os.environ.get("SERVER_BACKEND_URL", "http://localhost:8000")
+# Allow only your server backend to access this service
+ALLOWED_ORIGINS = [SERVER_BACKEND_URL]
+
+# Add CORS middleware with restricted access
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],  # Modify this in production
+    allow_origins=ALLOWED_ORIGINS,  # Only allow the server backend
     allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
+    allow_methods=["POST", "GET"],  # Only methods you actually need
+    allow_headers=["Content-Type"],  # Only headers you actually need
 )
 
 @app.get('/health')
