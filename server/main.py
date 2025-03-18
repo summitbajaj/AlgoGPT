@@ -15,6 +15,7 @@ from agents.ai_complexity_analyzer import AIComplexityAnalyzer
 from agents.question_generator_agent import generate_new_problem
 from utils.embedding_creator import create_embedding_after_generation
 from profiling_api import register_profiling_api
+from roadmap_api import register_roadmap_api
 from uuid import UUID
 import datetime
 import uuid
@@ -53,6 +54,7 @@ def get_db():
 
 # Register profiling API routes
 register_profiling_api(app)
+register_roadmap_api(app)
 
 # -------------------------------
 # 1️⃣ Fetch all problems that are not ai generated

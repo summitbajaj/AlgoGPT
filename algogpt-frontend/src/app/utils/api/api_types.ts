@@ -132,6 +132,46 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/roadmap": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Roadmap
+         * @description Get the complete roadmap with topics and connections.
+         */
+        get: operations["get_roadmap_api_roadmap_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/topics": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Topics
+         * @description Get list of all topics with question counts.
+         */
+        get: operations["get_topics_api_topics_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/problems": {
         parameters: {
             query?: never;
@@ -455,6 +495,42 @@ export interface components {
             /** Current Difficulty */
             current_difficulty?: string | null;
         };
+        /** RoadmapProblemModel */
+        RoadmapProblemModel: {
+            /** Id */
+            id: string;
+            /** Title */
+            title: string;
+            /** Difficulty */
+            difficulty: string;
+        };
+        /** RoadmapResponse */
+        RoadmapResponse: {
+            /** Topics */
+            topics: components["schemas"]["RoadmapTopicModel"][];
+            /** Connections */
+            connections: components["schemas"]["TopicConnectionModel"][];
+        };
+        /** RoadmapTopicModel */
+        RoadmapTopicModel: {
+            /** Id */
+            id: string;
+            /** Text */
+            text: string;
+            /** X */
+            x: number;
+            /** Y */
+            y: number;
+            /** Questions */
+            questions: components["schemas"]["RoadmapProblemModel"][];
+            /** Total */
+            total: number;
+            /**
+             * Has Questions
+             * @default true
+             */
+            has_questions: boolean;
+        };
         /** RunCodeTestCase */
         RunCodeTestCase: {
             /** Test Case Id */
@@ -552,10 +628,17 @@ export interface components {
             /** Error */
             error?: string | null;
         };
+        /** TopicConnectionModel */
+        TopicConnectionModel: {
+            /** From Id */
+            from_id: string;
+            /** To Id */
+            to_id: string;
+        };
         /** TopicListResponse */
         TopicListResponse: {
             /** Topics */
-            topics: Record<string, never>[];
+            topics: components["schemas"]["RoadmapTopicModel"][];
         };
         /** ValidationError */
         ValidationError: {
@@ -792,6 +875,46 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_roadmap_api_roadmap_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RoadmapResponse"];
+                };
+            };
+        };
+    };
+    get_topics_api_topics_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TopicListResponse"];
                 };
             };
         };
