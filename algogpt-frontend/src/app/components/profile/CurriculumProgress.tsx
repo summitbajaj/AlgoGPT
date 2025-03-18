@@ -143,7 +143,7 @@ const CurriculumProgress: React.FC<CurriculumProgressProps> = ({ data = defaultD
                           
                           {topic === data.nextRecommendedTopic && (
                             <div className="mt-2 flex">
-                              <Link href={`/learn/${topic.toLowerCase().replace(/ /g, '-')}`}>
+                              <Link href="/problems">
                                 <Button size="sm" className="text-xs h-7 px-2">
                                   Start Learning <ChevronRight className="ml-1 h-3 w-3" />
                                 </Button>
