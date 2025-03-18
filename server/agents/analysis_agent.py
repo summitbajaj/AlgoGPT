@@ -8,7 +8,7 @@ import uuid
 import json
 from dotenv import load_dotenv
 from database.database import SessionLocal
-from database.models import StudentProfile, StudentTopicMastery, Problem, Topic, TestCase
+from database.models import StudentProfile, StudentTopicMastery, Problem, Topic, TestCase, CodeAnalysis
 from datetime import datetime
 
 # Load environment variables
@@ -647,6 +647,31 @@ def analyze_submission(
     
     # Run the graph
     result = analysis_agent.invoke(initial_state, config=config)
+
+    # save the analysis in the database
+    if result.get("code_analysis"):
+        db = SessionLocal()
+        try:
+            # Create code analysis record
+            analysis = CodeAnalysis(
+                submission_id=submission_id,
+                student_id=student_id,
+                problem_id=problem_id,
+                quality_score=result["code_analysis"].get("quality_score", 0),
+                approach_score=result["code_analysis"].get("approach_score", 0),
+                efficiency_score=result["code_analysis"].get("efficiency_score", 0),
+                readability_score=result["code_analysis"].get("readability_score", 0),
+                struggle_areas=result["code_analysis"].get("struggle_areas", []),
+                comments=result["code_analysis"].get("comments", ""),
+                complexity=result["code_analysis"].get("complexity", "")
+            )
+            db.add(analysis)
+            db.commit()
+        except Exception as e:
+            db.rollback()
+            print(f"Error saving code analysis: {str(e)}")
+        finally:
+            db.close()
     
     # Check for errors
     if result.get("errors"):
