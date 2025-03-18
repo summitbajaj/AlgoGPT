@@ -614,45 +614,50 @@ export default function InteractiveRoadmapPage() {
                     {/* Problems list with bold header */}
                     <h3 className="font-bold text-slate-600 mb-4 text-base">PROBLEMS</h3>
                     <div className="space-y-4">
-                      {activeTopic.questions.map(q => {
-                        const isChecked = !!completedQuestions[q.id];
-                        const difficultyColor = DIFFICULTY_COLORS[q.difficulty as keyof typeof DIFFICULTY_COLORS] || 
-                                              { bg: "#94a3b8", text: "white" };
-                        
-                        return (
-                          <div key={q.id} className="flex items-start">
-                            <input
-                              type="checkbox"
-                              id={`question-${q.id}`}
-                              checked={isChecked}
-                              onChange={() => toggleQuestionCompletion(q.id)}
-                              className="mt-1.5 rounded text-blue-500 focus:ring-blue-500 h-4 w-4 border-2"
-                            />
-                            <label
-                              htmlFor={`question-${q.id}`}
-                              className="flex flex-col ml-3 cursor-pointer"
+                    {activeTopic.questions.map(q => {
+                      const isChecked = !!completedQuestions[q.id];
+                      const difficultyColor = DIFFICULTY_COLORS[q.difficulty as keyof typeof DIFFICULTY_COLORS] || 
+                                            { bg: "#94a3b8", text: "white" };
+                      
+                      return (
+                        <div key={q.id} className="flex items-start">
+                          <input
+                            type="checkbox"
+                            id={`question-${q.id}`}
+                            checked={isChecked}
+                            onChange={() => toggleQuestionCompletion(q.id)}
+                            className="mt-1.5 rounded text-blue-500 focus:ring-blue-500 h-4 w-4 border-2"
+                          />
+                          <label
+                            htmlFor={`question-${q.id}`}
+                            className="flex flex-col ml-3 cursor-pointer w-full"
+                          >
+                            <a 
+                              href={`/problems/${q.id}`}
+                              className={`${
+                                isChecked ? "line-through text-slate-400" : "text-slate-700 hover:text-blue-500"
+                              } transition-colors`}
+                              onClick={(e) => {
+                                // Prevent checkbox behavior when clicking the link
+                                e.stopPropagation();
+                              }}
                             >
-                              <span
-                                className={`${
-                                  isChecked ? "line-through text-slate-400" : "text-slate-700"
-                                }`}
-                              >
-                                {isChecked ? <span className="opacity-70">{q.title}</span> : q.title}
-                              </span>
-                              
-                              <span 
-                                className="text-xs px-3 py-1 rounded-full font-medium inline-block mt-2 w-24 text-center"
-                                style={{ 
-                                  backgroundColor: difficultyColor.bg, 
-                                  color: difficultyColor.text 
-                                }}
-                              >
-                                {q.difficulty}
-                              </span>
-                            </label>
-                          </div>
-                        )
-                      })}
+                              {isChecked ? <span className="opacity-70">{q.title}</span> : q.title}
+                            </a>
+                            
+                            <span 
+                              className="text-xs px-3 py-1 rounded-full font-medium inline-block mt-2 w-24 text-center"
+                              style={{ 
+                                backgroundColor: difficultyColor.bg, 
+                                color: difficultyColor.text 
+                              }}
+                            >
+                              {q.difficulty}
+                            </span>
+                          </label>
+                        </div>
+                      )
+                    })}
                     </div>
                   </>
                 ) : (
