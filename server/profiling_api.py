@@ -3,7 +3,7 @@ from sqlalchemy.orm import Session
 from sqlalchemy import func
 from typing import Dict, List, Any
 from database.database import SessionLocal
-from agents.profiling_agent import start_profiling_session, process_submission_and_continue, finalize_profiling
+from agents.profiling_agent import start_profiling_session, process_submission_and_continue, finalize_profiling, profiling_agent, update_with_problem
 from agents.question_selector_agent import select_problem
 from agents.analysis_agent import analyze_submission
 import traceback
@@ -159,7 +159,6 @@ async def api_submit_profiling_answer(
         if problem_result.get('success', False):
             # CRITICAL: Update the agent state with the selected problem
             try:
-                from agents.profiling_agent import profiling_agent, update_with_problem
                 config = {"configurable": {"thread_id": request.session_id}}
                 
                 # Get current state
@@ -287,15 +286,9 @@ async def get_student_assessment(
 ):
     """Get assessment data for a specific student"""
     try:
-        # Convert student_id to UUID
-        try:
-            uuid_student_id = uuid.UUID(student_id)
-        except ValueError:
-            uuid_student_id = uuid.uuid5(uuid.NAMESPACE_DNS, student_id)
-        
         # Get student profile
         student_profile = db.query(StudentProfile).filter(
-            StudentProfile.user_id == uuid_student_id
+            StudentProfile.id == student_id
         ).first()
         
         if not student_profile:
@@ -317,7 +310,7 @@ async def get_student_assessment(
                     "problems_attempted": tm.problems_attempted,
                     "problems_solved": tm.problems_solved,
                     "problems_solved_non_ai": db.query(StudentAttempt).join(Problem).filter(
-                        StudentAttempt.student_id == uuid_student_id,
+                        StudentAttempt.student_id == student_id,
                         Problem.topics.any(Topic.id == tm.topic_id),
                         Problem.is_ai_generated == False,
                         StudentAttempt.completed == True
@@ -327,7 +320,7 @@ async def get_student_assessment(
         
         # Get recent attempts
         attempts = db.query(StudentAttempt).filter(
-            StudentAttempt.student_id == uuid_student_id
+            StudentAttempt.student_id == student_id
         ).order_by(StudentAttempt.start_time.desc()).limit(10).all()
         
         # Format attempt data
@@ -360,8 +353,7 @@ async def get_student_assessment(
         elif overall_mastery >= 50:
             skill_level = "Intermediate"
         
-        # Get struggle patterns - now enhanced with more detailed DSA context
-        # For the purpose of this update, we'll create more detailed struggle categories
+        # Get struggle patterns
         struggle_patterns = [
             {"area": "Algorithm Pattern Recognition", "count": 3},
             {"area": "Edge Case Handling", "count": 2},
@@ -377,7 +369,11 @@ async def get_student_assessment(
             "recent_attempts": attempt_data,
             "struggle_patterns": struggle_patterns
         }
+    except HTTPException:
+        # Re-raise HTTPExceptions (like 404) without modification
+        raise
     except Exception as e:
+        # Convert other exceptions to 500 errors
         raise HTTPException(status_code=500, detail=str(e))
 
 # Admin Dashboard Endpoint
