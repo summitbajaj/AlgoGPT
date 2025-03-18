@@ -75,7 +75,7 @@ function ProfileContent() {
       setIsLoading(true);
       try {
         const userId = user?.uid || "anonymous";
-        const response = await fetch(`http://localhost:8000/api/profiling/student/${userId}/assessment`);        
+        const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/profiling/student/${userId}/assessment`);        
         if (response.ok) {
           const data = await response.json();
           setAssessmentData(data);

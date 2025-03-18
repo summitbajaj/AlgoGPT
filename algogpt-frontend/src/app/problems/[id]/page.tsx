@@ -92,7 +92,7 @@ export default function ProblemPage() {
   useEffect(() => {
     const fetchData = async () => {
       try {
-        const res = await fetch(`http://localhost:8000/problems/${params.id}`);
+        const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/problems/${params.id}`);
         if (!res.ok) throw new Error("Problem not found");
         const data: Problem = await res.json();
         setProblem(data);

@@ -26,7 +26,7 @@ export default function ProblemsPage() {
     const fetchProblems = async () => {
       setIsLoading(true)
       try {
-        const response = await fetch("http://localhost:8000/problems")
+        const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/problems`)
         const data: Problem[] = await response.json()
         setProblems(data)
 

@@ -90,7 +90,7 @@ export default function ProfilingPage() {
 
     const startProfiling = async () => {
       try {
-        const resp = await fetch("http://localhost:8000/api/profiling/start-profiling", {
+        const resp = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/profiling/start-profiling`, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ student_id: userId }),
@@ -193,7 +193,7 @@ export default function ProfilingPage() {
       setProgressPercent(20);
 
       // Send to profiling
-      const resp = await fetch("http://localhost:8000/api/profiling/submit-profiling-answer", {
+      const resp = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/profiling/submit-profiling-answer`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({

@@ -29,7 +29,7 @@ export const WebSocketProvider: React.FC<{
 
   useEffect(() => {
     const connectWebSocket = () => {
-      const ws = new WebSocket(`ws://localhost:8000/ws/chat/${userId}/${problemId}`);
+      const ws = new WebSocket(`${process.env.NEXT_PUBLIC_WS_URL}/ws/chat/${userId}/${problemId}`);
       wsRef.current = ws;
 
       ws.onopen = () => {

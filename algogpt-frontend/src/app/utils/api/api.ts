@@ -1,7 +1,7 @@
 import { PostRunCodeRequest, PostRunCodeResponse, SubmitCodeRequest, SubmitCodeResponse, ComplexityAnalysisRequest, ComplexityAnalysisResponse, RoadmapResponse, TopicListResponse } from './types';
 
 // Create a base URL constant to keep things consistent
-const API_BASE_URL = 'http://localhost:8000';
+const API_BASE_URL = `${process.env.NEXT_PUBLIC_API_URL}`;
 
 export const runCode = async (request: PostRunCodeRequest): Promise<PostRunCodeResponse> => {
     try {
