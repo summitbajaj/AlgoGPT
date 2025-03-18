@@ -330,3 +330,79 @@ class CodeSnapshot(Base):
     
     # Relationships
     session = relationship("ChatSession", back_populates="code_snapshots")
+
+
+# Code analysis results
+class CodeAnalysis(Base):
+    __tablename__ = "code_analyses"
+    
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    submission_id = Column(UUID(as_uuid=True), ForeignKey("submissions.id"), nullable=False, index=True)
+    student_id = Column(String, ForeignKey("student_profiles.id"), nullable=False, index=True)
+    problem_id = Column(Integer, ForeignKey("problems.id"), nullable=False)
+    
+    # Analysis results
+    quality_score = Column(Float, nullable=False)
+    approach_score = Column(Float, nullable=False)
+    efficiency_score = Column(Float, nullable=False)
+    readability_score = Column(Float, nullable=False)
+    
+    # Store the struggle areas identified
+    struggle_areas = Column(JSONB, nullable=True)  # Array of struggle area codes
+    comments = Column(Text, nullable=True)
+    complexity = Column(String, nullable=True)
+    
+    created_at = Column(DateTime, default=datetime.utcnow)
+    
+    # Relationships
+    submission = relationship("Submission")
+    student = relationship("StudentProfile")
+    problem = relationship("Problem")
+
+# Profiling session data
+class ProfilingSession(Base):
+    __tablename__ = "profiling_sessions"
+    
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    student_id = Column(String, ForeignKey("student_profiles.id"), nullable=False, index=True)
+    session_id = Column(String, nullable=False, unique=True)  # The session ID used by the agent
+    
+    # Session metadata
+    start_time = Column(DateTime, nullable=False)
+    end_time = Column(DateTime, nullable=True)
+    
+    # Assessment results
+    skill_level = Column(String, nullable=True)  # Beginner, Intermediate, Advanced
+    overall_mastery = Column(Float, nullable=True)
+    
+    # Store the struggle patterns identified
+    struggle_patterns = Column(JSONB, nullable=True)  # JSON with area->count mapping
+    
+    # Session statistics
+    problems_attempted = Column(Integer, default=0)
+    problems_solved = Column(Integer, default=0)
+    
+    created_at = Column(DateTime, default=datetime.utcnow)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    
+    # Relationships
+    student = relationship("StudentProfile")
+    completed_problems = relationship("ProfilingProblem", back_populates="session", cascade="all, delete-orphan")
+
+# Individual problems included in a profiling session
+class ProfilingProblem(Base):
+    __tablename__ = "profiling_problems"
+    
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    session_id = Column(UUID(as_uuid=True), ForeignKey("profiling_sessions.id"), nullable=False)
+    problem_id = Column(Integer, ForeignKey("problems.id"), nullable=False)
+    topic_id = Column(Integer, ForeignKey("topics.id"), nullable=False)
+    difficulty = Column(String, nullable=False)
+    status = Column(String, nullable=False)  # Accepted, Wrong Answer, etc.
+    
+    created_at = Column(DateTime, default=datetime.utcnow)
+    
+    # Relationships
+    session = relationship("ProfilingSession", back_populates="completed_problems")
+    problem = relationship("Problem")
+    topic = relationship("Topic")

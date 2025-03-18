@@ -153,12 +153,6 @@ class StudentAssessmentResponse(BaseModel):
     recent_attempts: List[Dict[str, Any]]
     struggle_patterns: List[Dict[str, Any]]
 
-class AdminDashboardResponse(BaseModel):
-    student_count: int
-    topic_stats: List[Dict[str, Any]]
-    recent_assessments: List[Dict[str, Any]]
-    common_struggles: List[Dict[str, Any]]
-
 # Roadmap API
 # Difficulty enum (matches your DB model)
 class DifficultyLevel(str, Enum):
