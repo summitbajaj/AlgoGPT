@@ -19,6 +19,9 @@ import { JsonValue } from "@/app/components/profile/SubmissionReviewModal";
 import SubmissionReviewModal from "@/app/components/profile/SubmissionReviewModal";
 import AssessmentResults, { AssessmentResult } from "@/app/components/profile/AssesmentResultComponent";
 
+import ProcessingSolutionOverlay from "@/app/components/profile/ProcessingSolutionOverlay";
+import { AnimatePresence, motion } from "framer-motion";
+
 import { useAuth } from "@/firebase/AuthContext";
 interface SubmissionReview {
   status: string;
@@ -68,6 +71,9 @@ export default function ProfilingPage() {
   // Single progress bar below code submission
   const [showProgressBar, setShowProgressBar] = useState(false);
   const [progressPercent, setProgressPercent] = useState(0);
+  
+  // Add state to manage transitions
+  const [isTransitioning, setIsTransitioning] = useState(false);
 
   // Using the AuthContext to get the user ID
   const { user } = useAuth();
@@ -241,23 +247,31 @@ export default function ProfilingPage() {
   // ----------------------------------
   const handleReviewContinue = () => {
     setShowSubmissionReview(false);
+    // Start transition
+    setIsTransitioning(true);
 
     const pendingAction = window.sessionStorage.getItem("pendingAction");
     if (pendingAction === "completeAssessment") {
-      // Show final results
+      // Show final results after transition
       const savedResult = window.sessionStorage.getItem("assessmentResult");
-      if (savedResult) {
-        setAssessmentResult(JSON.parse(savedResult));
-        setProfilingStatus("completed");
-      }
+      setTimeout(() => {
+        if (savedResult) {
+          setAssessmentResult(JSON.parse(savedResult));
+          setProfilingStatus("completed");
+        }
+        // End transition with small delay for smooth exit animation
+        setTimeout(() => {
+          setIsTransitioning(false);
+        }, 100);
+      }, 300); // Slightly shorter timing for better UX
     } else if (pendingAction === "nextProblem") {
-      // Load next problem
+      // Prepare next problem data while faded out
       const nextProblemData = window.sessionStorage.getItem("nextProblem");
       if (nextProblemData) {
-        const nextProblem = JSON.parse(nextProblemData);
-        setProblem(null);
-
         setTimeout(() => {
+          const nextProblem = JSON.parse(nextProblemData);
+          
+          // Update states while content is faded out
           setProblem(nextProblem);
           setAttemptedProblems((prev) => prev + 1);
 
@@ -269,7 +283,12 @@ export default function ProfilingPage() {
             setTestCaseInputs([]);
           }
           setActiveTestCase(0);
-        }, 50);
+          
+          // End transition with better timing for animation
+          setTimeout(() => {
+            setIsTransitioning(false);
+          }, 150);
+        }, 250);
       }
     }
 
@@ -375,57 +394,34 @@ export default function ProfilingPage() {
 
   return (
     <>
-      {/* Full-screen overlay if isSubmitting = true, more opaque */}
-      {isSubmitting && (
-        <div className="fixed inset-0 flex flex-col items-center justify-center bg-white/90 z-50">
-          <div className="flex items-center mb-2">
-            <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-blue-600 mr-3" />
-            <span className="text-lg font-semibold">
-              Analyzing your solution and preparing the next question...
-            </span>
-          </div>
-          {showProgressBar && (
-            <div className="w-48 bg-slate-200 h-2 rounded-full overflow-hidden mt-2">
-              <div
-                className="bg-blue-600 h-full transition-all duration-500 ease-in-out"
-                style={{ width: `${progressPercent}%` }}
-              />
-            </div>
-          )}
-        </div>
-      )}
-
+      {/* Full-screen overlay if isSubmitting = true*/}
+      <ProcessingSolutionOverlay 
+        isVisible={isSubmitting}
+      />
+  
       <div className="fixed inset-0 bg-white text-black flex flex-col pt-[60px]">
-        {/* 
-          Header with:
-          - Title
-          - Topic 
-          - Problem # 
-          - Horizontal progress bar for "out of 12"
-        */}
+        {/* Header */}
         <div className="bg-slate-100 py-2 px-4 flex flex-col">
+          {/* Header content - unchanged */}
           <div className="flex justify-between items-center">
             <div className="flex items-center">
               <Brain className="h-5 w-5 text-purple-500 mr-2" />
               <h2 className="font-medium">Profiling Assessment</h2>
             </div>
             <div className="flex items-center space-x-4">
-              {/* Show the real topic from your data */}
               <div className="flex items-center">
                 <BarChart className="h-4 w-4 text-blue-600 mr-1" />
                 <span className="text-sm">
                   Topic: <span className="font-medium">{displayedTopic}</span>
                 </span>
               </div>
-              {/* Problem X/12 */}
               <div className="flex items-center">
                 <Clock className="h-4 w-4 mr-1" />
                 <span className="text-sm">Problem {attemptedProblems + 1}/12</span>
               </div>
             </div>
           </div>
-
-          {/* Add a small progress bar to visualize progress out of 12 */}
+  
           <div className="mt-2 h-2 bg-slate-200 rounded-full overflow-hidden">
             <div
               className="h-full bg-blue-600 transition-all duration-300"
@@ -433,8 +429,22 @@ export default function ProfilingPage() {
             />
           </div>
         </div>
-
-        {/* Main layout: left (description) + right (code editor) */}
+  
+        {/* Replace the current overlay div with this Framer Motion implementation */}
+        <AnimatePresence>
+          {isTransitioning && (
+            <motion.div 
+              className="absolute inset-0 bg-white z-50"
+              style={{ top: "60px" }} // Matches your pt-[60px] value
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              transition={{ duration: 0.3, ease: "easeInOut" }}
+            />
+          )}
+        </AnimatePresence>
+  
+        {/* Unchanged panel layout */}
         <PanelGroup direction="horizontal" className="flex-1">
           <Panel defaultSize={40} minSize={20}>
             <div className="h-full overflow-auto p-4">
@@ -450,9 +460,9 @@ export default function ProfilingPage() {
               </Card>
             </div>
           </Panel>
-
+  
           <PanelResizeHandle className="w-2 h-full bg-gray-200 hover:bg-gray-300 transition-colors" />
-
+  
           <Panel minSize={30}>
             <CodeSection
               key={`profiling_problem_${problem.problem_id}_attempt_${attemptedProblems}`}
@@ -472,8 +482,7 @@ export default function ProfilingPage() {
               disableWebSocket={true}
               userId={userId}
             />
-
-            {/* Local progress bar below code if not overlaying */}
+  
             {showProgressBar && !isSubmitting && (
               <div className="mx-4 mt-2 bg-slate-200 h-2 rounded-full overflow-hidden">
                 <div
@@ -482,14 +491,13 @@ export default function ProfilingPage() {
                 />
               </div>
             )}
-
-            {/* Debug or remove */}
+  
             <div className="px-4 py-2 text-xs text-gray-500">
               Problem ID: {problem.problem_id}
             </div>
           </Panel>
         </PanelGroup>
-
+  
         {/* Submission review modal */}
         {showSubmissionReview && submissionReview && (
           <SubmissionReviewModal review={submissionReview} onContinue={handleReviewContinue} />
