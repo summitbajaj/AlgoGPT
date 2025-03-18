@@ -2,7 +2,6 @@ from langgraph.graph import StateGraph, START, END
 from langgraph.checkpoint.memory import MemorySaver
 from typing import Dict, List, Any, Optional, TypedDict
 from langchain_openai import AzureChatOpenAI
-from langchain_core.messages import AIMessage, HumanMessage, SystemMessage
 import os
 import uuid
 import json
@@ -51,19 +50,13 @@ def initialize_profiling(state: ProfilingState) -> ProfilingState:
     student_id = state["student_id"]
     db = SessionLocal()
     try:
-        # Parse or generate the UUID for the student
-        try:
-            uuid_student_id = uuid.UUID(student_id)
-        except ValueError:
-            uuid_student_id = uuid.uuid5(uuid.NAMESPACE_DNS, student_id)
-        
         # Check if student profile exists; create if not
         student_profile = db.query(StudentProfile).filter(
-            StudentProfile.user_id == uuid_student_id
+            StudentProfile.id == student_id
         ).first()
         
         if not student_profile:
-            student_profile = StudentProfile(user_id=uuid_student_id)
+            student_profile = StudentProfile(id=student_id)
             db.add(student_profile)
             db.flush()
             topics = db.query(Topic).all()
@@ -413,17 +406,9 @@ def process_submission_result(state: ProfilingState, submission_result: Dict[str
         for area in struggle_areas:
             current_struggles[area] = current_struggles.get(area, 0) + 1
         
-        # Handle UUID conversion safely
-        try:
-            # Try to parse as UUID
-            uuid_student_id = uuid.UUID(student_id)
-        except ValueError:
-            # If not a valid UUID, generate one consistently
-            uuid_student_id = uuid.uuid5(uuid.NAMESPACE_DNS, student_id)
-        
         # Update student profile in database
         student_profile = db.query(StudentProfile).filter(
-            StudentProfile.user_id == uuid_student_id
+            StudentProfile.id == student_id
         ).first()
         
         if student_profile:
@@ -448,7 +433,7 @@ def process_submission_result(state: ProfilingState, submission_result: Dict[str
             
             # Record student attempt
             student_attempt = StudentAttempt(
-                student_id=uuid_student_id,
+                student_id=student_id,
                 problem_id=problem_id,
                 start_time=datetime.utcnow(),  # Approximation
                 end_time=datetime.utcnow(),
@@ -490,16 +475,10 @@ def finalize_profiling(state: ProfilingState) -> ProfilingState:
     try:
         # Handle UUID conversion safely
         student_id = state["student_id"]
-        try:
-            # Try to parse as UUID
-            uuid_student_id = uuid.UUID(student_id)
-        except ValueError:
-            # If not a valid UUID, generate one consistently
-            uuid_student_id = uuid.uuid5(uuid.NAMESPACE_DNS, student_id)
             
         # Get all topic masteries
         student_profile = db.query(StudentProfile).filter(
-            StudentProfile.user_id == uuid_student_id
+            StudentProfile.id == student_id
         ).first()
         
         if not student_profile:

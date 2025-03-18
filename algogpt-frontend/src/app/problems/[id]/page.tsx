@@ -15,6 +15,7 @@ import { AIChat } from "@/app/components/problem/AIChat";
 import { WebSocketProvider } from "@/app/context/WebSocketContext";
 import { SubmissionsTab } from "@/app/components/problem/SubmissionComponent";
 import { analyzeComplexity } from "@/app/utils/api/api";
+import { useAuth } from "@/firebase/AuthContext";
 
 export default function ProblemPage() {
   const params = useParams<{ id: string }>();
@@ -34,8 +35,9 @@ export default function ProblemPage() {
   const [complexityData, setComplexityData] = useState<ComplexityAnalysisResponse | null>(null);
   const [isAnalyzing, setIsAnalyzing] = useState(false);
   
-  // Replace with your actual user authentication
-  const dummyUserId = "user123";
+  // Using the AuthContext to get the user ID
+  const { user } = useAuth();
+  const userId = user?.uid || "anonymous"; 
 
   const handleRun = () => {
     // Transform each test case input
@@ -232,7 +234,7 @@ export default function ProblemPage() {
   }
 
   return (
-    <WebSocketProvider userId={dummyUserId} problemId={params.id}>
+    <WebSocketProvider userId={userId} problemId={params.id}>
       <div className="fixed inset-0 bg-white text-black flex flex-col pt-[60px]">
         <PanelGroup direction="horizontal" className="flex-1">
           <Panel defaultSize={40} minSize={20}>
@@ -275,6 +277,7 @@ export default function ProblemPage() {
             <CodeSection
               key={params.id}
               problem={problem}
+              userId={userId}
               isRunning={isRunning}
               activeTestCase={activeTestCase}
               output={output}

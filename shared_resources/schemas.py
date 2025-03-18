@@ -18,9 +18,12 @@ class SubmitCodeTestResult(RunCodeTestCase):
 
 # @app.post("/submit-code") endpoint
 class SubmitCodeRequest(BaseModel):
+    user_id: str
     source_code: str
     problem_id: int
-class SubmitCodeExecutionPayload(SubmitCodeRequest):
+class SubmitCodeExecutionPayload(BaseModel):
+    source_code: str
+    problem_id: int
     function_name: str
     test_cases: List[SubmitCodeTestCase] 
 class SubmitCodeResponse(BaseModel):
@@ -112,3 +115,45 @@ class GeneratedProblemResponse(BaseModel):
 
 class TopicListResponse(BaseModel):
     topics: List[Dict[str, Any]]
+
+class StartProfilingRequest(BaseModel):
+    student_id: str
+
+class StartProfilingResponse(BaseModel):
+    session_id: str
+    problem: Dict[str, Any]
+
+class SubmitProfilingAnswerRequest(BaseModel):
+    session_id: str
+    submission_result: Dict[str, Any]
+
+class SubmitProfilingAnswerResponse(BaseModel):
+    status: str
+    next_problem: Optional[Dict[str, Any]] = None
+    assessment_result: Optional[Dict[str, Any]] = None
+    error: Optional[str] = None
+
+# for profiling_api
+class ProfilingStatusRequest(BaseModel):
+    session_id: str
+
+class ProfilingStatusResponse(BaseModel):
+    status: str
+    completed: bool
+    problems_attempted: int
+    current_topic: Optional[str] = None
+    current_difficulty: Optional[str] = None
+
+class StudentAssessmentResponse(BaseModel):
+    student_id: str
+    skill_level: str
+    overall_mastery: float
+    topic_masteries: List[Dict[str, Any]]
+    recent_attempts: List[Dict[str, Any]]
+    struggle_patterns: List[Dict[str, Any]]
+
+class AdminDashboardResponse(BaseModel):
+    student_count: int
+    topic_stats: List[Dict[str, Any]]
+    recent_assessments: List[Dict[str, Any]]
+    common_struggles: List[Dict[str, Any]]

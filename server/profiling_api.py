@@ -1,17 +1,29 @@
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 from sqlalchemy import func
-from typing import Dict, List, Any, Optional
-from pydantic import BaseModel
+from typing import Dict, List, Any
 from database.database import SessionLocal
-from agents.profiling_agent import start_profiling_session, process_submission_and_continue, finalize_profiling
+from agents.profiling_agent import start_profiling_session, process_submission_and_continue, finalize_profiling, profiling_agent, update_with_problem
 from agents.question_selector_agent import select_problem
 from agents.analysis_agent import analyze_submission
-import json
 import traceback
 import uuid
-from datetime import datetime
-from database.models import StudentProfile, StudentTopicMastery, Topic, StudentAttempt, Problem, Submission, TestCase
+import sys
+import os
+from database.models import StudentProfile, StudentTopicMastery, Topic, StudentAttempt, Problem, Submission
+
+# Add shared_resources to Python path
+sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "shared_resources")))
+from shared_resources.schemas import (
+    StartProfilingRequest,
+    StartProfilingResponse,
+    SubmitProfilingAnswerRequest,
+    SubmitProfilingAnswerResponse,
+    ProfilingStatusRequest,
+    ProfilingStatusResponse,
+    StudentAssessmentResponse,
+    AdminDashboardResponse
+)
 
 # Define get_db function here to avoid circular imports
 def get_db():
@@ -20,48 +32,6 @@ def get_db():
         yield db
     finally:
         db.close()
-
-# Request/Response Models
-class StartProfilingRequest(BaseModel):
-    student_id: str
-
-class StartProfilingResponse(BaseModel):
-    session_id: str
-    problem: Dict[str, Any]
-
-class SubmitProfilingAnswerRequest(BaseModel):
-    session_id: str
-    submission_result: Dict[str, Any]
-
-class SubmitProfilingAnswerResponse(BaseModel):
-    status: str
-    next_problem: Optional[Dict[str, Any]] = None
-    assessment_result: Optional[Dict[str, Any]] = None
-    error: Optional[str] = None
-
-class ProfilingStatusRequest(BaseModel):
-    session_id: str
-
-class ProfilingStatusResponse(BaseModel):
-    status: str
-    completed: bool
-    problems_attempted: int
-    current_topic: Optional[str] = None
-    current_difficulty: Optional[str] = None
-
-class StudentAssessmentResponse(BaseModel):
-    student_id: str
-    skill_level: str
-    overall_mastery: float
-    topic_masteries: List[Dict[str, Any]]
-    recent_attempts: List[Dict[str, Any]]
-    struggle_patterns: List[Dict[str, Any]]
-
-class AdminDashboardResponse(BaseModel):
-    student_count: int
-    topic_stats: List[Dict[str, Any]]
-    recent_assessments: List[Dict[str, Any]]
-    common_struggles: List[Dict[str, Any]]
 
 # Create router
 profiling_router = APIRouter()
@@ -136,7 +106,6 @@ async def api_submit_profiling_answer(
             if "submission_id" in request.submission_result:
                 # Try to fetch problem_id using submission_id
                 try:
-                    from database.models import Submission
                     submission_id = request.submission_result["submission_id"]
                     submission = db.query(Submission).filter(Submission.id == submission_id).first()
                     if submission:
@@ -190,7 +159,6 @@ async def api_submit_profiling_answer(
         if problem_result.get('success', False):
             # CRITICAL: Update the agent state with the selected problem
             try:
-                from agents.profiling_agent import profiling_agent, update_with_problem
                 config = {"configurable": {"thread_id": request.session_id}}
                 
                 # Get current state
@@ -318,15 +286,9 @@ async def get_student_assessment(
 ):
     """Get assessment data for a specific student"""
     try:
-        # Convert student_id to UUID
-        try:
-            uuid_student_id = uuid.UUID(student_id)
-        except ValueError:
-            uuid_student_id = uuid.uuid5(uuid.NAMESPACE_DNS, student_id)
-        
         # Get student profile
         student_profile = db.query(StudentProfile).filter(
-            StudentProfile.user_id == uuid_student_id
+            StudentProfile.id == student_id
         ).first()
         
         if not student_profile:
@@ -348,7 +310,7 @@ async def get_student_assessment(
                     "problems_attempted": tm.problems_attempted,
                     "problems_solved": tm.problems_solved,
                     "problems_solved_non_ai": db.query(StudentAttempt).join(Problem).filter(
-                        StudentAttempt.student_id == uuid_student_id,
+                        StudentAttempt.student_id == student_id,
                         Problem.topics.any(Topic.id == tm.topic_id),
                         Problem.is_ai_generated == False,
                         StudentAttempt.completed == True
@@ -358,7 +320,7 @@ async def get_student_assessment(
         
         # Get recent attempts
         attempts = db.query(StudentAttempt).filter(
-            StudentAttempt.student_id == uuid_student_id
+            StudentAttempt.student_id == student_id
         ).order_by(StudentAttempt.start_time.desc()).limit(10).all()
         
         # Format attempt data
@@ -391,8 +353,7 @@ async def get_student_assessment(
         elif overall_mastery >= 50:
             skill_level = "Intermediate"
         
-        # Get struggle patterns - now enhanced with more detailed DSA context
-        # For the purpose of this update, we'll create more detailed struggle categories
+        # Get struggle patterns
         struggle_patterns = [
             {"area": "Algorithm Pattern Recognition", "count": 3},
             {"area": "Edge Case Handling", "count": 2},
@@ -408,7 +369,11 @@ async def get_student_assessment(
             "recent_attempts": attempt_data,
             "struggle_patterns": struggle_patterns
         }
+    except HTTPException:
+        # Re-raise HTTPExceptions (like 404) without modification
+        raise
     except Exception as e:
+        # Convert other exceptions to 500 errors
         raise HTTPException(status_code=500, detail=str(e))
 
 # Admin Dashboard Endpoint

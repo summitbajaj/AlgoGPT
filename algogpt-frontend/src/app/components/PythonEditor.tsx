@@ -32,6 +32,7 @@ interface PythonEditorProps {
   problemId: number;
   testCaseInputs: RunCodeTestCase[];
   disableWebSocket?: boolean; // New prop to make WebSocket optional
+  userId: string;
 }
 
 /**
@@ -50,15 +51,14 @@ function useOptionalWebSocket(): WebSocketContextType {
   }
 }
 
-
-
 export const PythonEditorComponent: React.FC<PythonEditorProps> = ({
   onRunCodeComplete: onExecutionComplete,
   onSubmitCodeComplete,
   initialCode = "",
   problemId,
   testCaseInputs,
-  disableWebSocket = false
+  disableWebSocket = false,
+  userId,
 }) => {
   const [code, setCode] = useState(initialCode);
   const [lspConnected, setLspConnected] = useState(true);
@@ -128,13 +128,14 @@ export const PythonEditorComponent: React.FC<PythonEditorProps> = ({
       const request: SubmitCodeRequest = {
         source_code: codeRef.current,
         problem_id: problemId,
+        user_id: userId
       };
       const response = await submitCode(request);
       onSubmitCodeComplete?.(response);
     } catch (error) {
       console.error('Failed to submit code:', error);
     }
-  }, [onSubmitCodeComplete, problemId]);
+  }, [onSubmitCodeComplete, problemId, userId]);
 
   // Listen for run button clicks
   useEffect(() => {

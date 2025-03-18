@@ -168,7 +168,8 @@ def store_submission_results(
     problem_id: int, 
     source_code: str, 
     test_results: List[Dict[str, Any]], 
-    status: SubmissionStatus
+    status: SubmissionStatus,
+    user_id: str
 ) -> Submission:
     """
     Stores submission results in the database.
@@ -190,6 +191,7 @@ def store_submission_results(
     # Create submission record
     submission = Submission(
         problem_id=problem_id,
+        user_id=user_id,
         source_code=source_code,
         status=status,
         total_tests=total_tests,

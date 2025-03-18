@@ -2,14 +2,13 @@ from langgraph.graph import StateGraph, START, END
 from langgraph.checkpoint.memory import MemorySaver
 from typing import Dict, List, Any, Optional, TypedDict
 from langchain_openai import AzureChatOpenAI
-from langchain_core.messages import AIMessage, HumanMessage, SystemMessage
+from langchain_core.messages import HumanMessage, SystemMessage
 import os
 import uuid
 import json
 from dotenv import load_dotenv
 from database.database import SessionLocal
 from database.models import StudentProfile, StudentTopicMastery, Problem, Topic, TestCase
-from sqlalchemy.orm import Session
 from datetime import datetime
 
 # Load environment variables
@@ -77,7 +76,7 @@ def fetch_context_data(state: AnalysisState) -> AnalysisState:
         
         # Get student profile
         student_profile = db.query(StudentProfile).filter(
-            StudentProfile.user_id == uuid.UUID(student_id)
+            StudentProfile.id == student_id
         ).first()
         
         student_data = None
@@ -454,7 +453,7 @@ def update_student_mastery(state: AnalysisState) -> AnalysisState:
     try:
         # Get student profile
         student_profile = db.query(StudentProfile).filter(
-            StudentProfile.user_id == uuid.UUID(student_id)
+            StudentProfile.id == student_id
         ).first()
         
         if not student_profile:

@@ -4,6 +4,134 @@
  */
 
 export interface paths {
+    "/api/profiling/start-profiling": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Api Start Profiling */
+        post: operations["api_start_profiling_api_profiling_start_profiling_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/profiling/submit-profiling-answer": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Api Submit Profiling Answer */
+        post: operations["api_submit_profiling_answer_api_profiling_submit_profiling_answer_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/profiling/analyze-submission": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Api Analyze Submission */
+        post: operations["api_analyze_submission_api_profiling_analyze_submission_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/profiling/profiling-status": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Api Profiling Status */
+        post: operations["api_profiling_status_api_profiling_profiling_status_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/profiling/student/{student_id}/assessment": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Student Assessment
+         * @description Get assessment data for a specific student
+         */
+        get: operations["get_student_assessment_api_profiling_student__student_id__assessment_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/profiling/admin/dashboard": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Admin Dashboard
+         * @description Get aggregated data for admin dashboard
+         */
+        get: operations["get_admin_dashboard_api_profiling_admin_dashboard_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/profiling/finalize-assessment": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Api Finalize Assessment
+         * @description Manually finalize an assessment that's reached the question limit
+         */
+        post: operations["api_finalize_assessment_api_profiling_finalize_assessment_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/problems": {
         parameters: {
             query?: never;
@@ -155,10 +283,61 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/topics": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Topics
+         * @description Get all available topics for problem generation
+         */
+        get: operations["get_topics_topics_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/generate-problem": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Generate Problem
+         * @description Generate a new problem based on topic and difficulty
+         */
+        post: operations["generate_problem_generate_problem_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
 }
 export type webhooks = Record<string, never>;
 export interface components {
     schemas: {
+        /** AdminDashboardResponse */
+        AdminDashboardResponse: {
+            /** Student Count */
+            student_count: number;
+            /** Topic Stats */
+            topic_stats: Record<string, never>[];
+            /** Recent Assessments */
+            recent_assessments: Record<string, never>[];
+            /** Common Struggles */
+            common_struggles: Record<string, never>[];
+        };
         /** ChatRequest */
         ChatRequest: {
             /** User Id */
@@ -196,6 +375,29 @@ export interface components {
             expected_output: unknown;
             /** Explanation */
             explanation: string;
+        };
+        /** GenerateProblemRequest */
+        GenerateProblemRequest: {
+            /** Topic Id */
+            topic_id: number;
+            /**
+             * Difficulty
+             * @default Easy
+             */
+            difficulty: string;
+            /** Existing Problem Id */
+            existing_problem_id?: number | null;
+        };
+        /** GeneratedProblemResponse */
+        GeneratedProblemResponse: {
+            /** Success */
+            success: boolean;
+            /** Problem Id */
+            problem_id?: number | null;
+            /** Problem Data */
+            problem_data?: Record<string, never> | null;
+            /** Error */
+            error?: string | null;
         };
         /** GetProblemResponse */
         GetProblemResponse: {
@@ -235,6 +437,24 @@ export interface components {
             /** Test Results */
             test_results: components["schemas"]["RunCodeTestCaseResult"][];
         };
+        /** ProfilingStatusRequest */
+        ProfilingStatusRequest: {
+            /** Session Id */
+            session_id: string;
+        };
+        /** ProfilingStatusResponse */
+        ProfilingStatusResponse: {
+            /** Status */
+            status: string;
+            /** Completed */
+            completed: boolean;
+            /** Problems Attempted */
+            problems_attempted: number;
+            /** Current Topic */
+            current_topic?: string | null;
+            /** Current Difficulty */
+            current_difficulty?: string | null;
+        };
         /** RunCodeTestCase */
         RunCodeTestCase: {
             /** Test Case Id */
@@ -251,8 +471,37 @@ export interface components {
             /** Output */
             output: unknown;
         };
+        /** StartProfilingRequest */
+        StartProfilingRequest: {
+            /** Student Id */
+            student_id: string;
+        };
+        /** StartProfilingResponse */
+        StartProfilingResponse: {
+            /** Session Id */
+            session_id: string;
+            /** Problem */
+            problem: Record<string, never>;
+        };
+        /** StudentAssessmentResponse */
+        StudentAssessmentResponse: {
+            /** Student Id */
+            student_id: string;
+            /** Skill Level */
+            skill_level: string;
+            /** Overall Mastery */
+            overall_mastery: number;
+            /** Topic Masteries */
+            topic_masteries: Record<string, never>[];
+            /** Recent Attempts */
+            recent_attempts: Record<string, never>[];
+            /** Struggle Patterns */
+            struggle_patterns: Record<string, never>[];
+        };
         /** SubmitCodeRequest */
         SubmitCodeRequest: {
+            /** User Id */
+            user_id: string;
             /** Source Code */
             source_code: string;
             /** Problem Id */
@@ -285,6 +534,29 @@ export interface components {
             /** Expected Output */
             expected_output: unknown;
         };
+        /** SubmitProfilingAnswerRequest */
+        SubmitProfilingAnswerRequest: {
+            /** Session Id */
+            session_id: string;
+            /** Submission Result */
+            submission_result: Record<string, never>;
+        };
+        /** SubmitProfilingAnswerResponse */
+        SubmitProfilingAnswerResponse: {
+            /** Status */
+            status: string;
+            /** Next Problem */
+            next_problem?: Record<string, never> | null;
+            /** Assessment Result */
+            assessment_result?: Record<string, never> | null;
+            /** Error */
+            error?: string | null;
+        };
+        /** TopicListResponse */
+        TopicListResponse: {
+            /** Topics */
+            topics: Record<string, never>[];
+        };
         /** ValidationError */
         ValidationError: {
             /** Location */
@@ -303,6 +575,227 @@ export interface components {
 }
 export type $defs = Record<string, never>;
 export interface operations {
+    api_start_profiling_api_profiling_start_profiling_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["StartProfilingRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["StartProfilingResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    api_submit_profiling_answer_api_profiling_submit_profiling_answer_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["SubmitProfilingAnswerRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SubmitProfilingAnswerResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    api_analyze_submission_api_profiling_analyze_submission_post: {
+        parameters: {
+            query: {
+                student_id: string;
+                problem_id: number;
+                submission_id: string;
+                submission_code: string;
+                submission_status: string;
+                is_profiling?: boolean;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": Record<string, never>[];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    api_profiling_status_api_profiling_profiling_status_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ProfilingStatusRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProfilingStatusResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_student_assessment_api_profiling_student__student_id__assessment_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                student_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["StudentAssessmentResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_admin_dashboard_api_profiling_admin_dashboard_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AdminDashboardResponse"];
+                };
+            };
+        };
+    };
+    api_finalize_assessment_api_profiling_finalize_assessment_post: {
+        parameters: {
+            query: {
+                session_id: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     list_problems_problems_get: {
         parameters: {
             query?: never;
@@ -504,6 +997,59 @@ export interface operations {
                 };
                 content: {
                     "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_topics_topics_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TopicListResponse"];
+                };
+            };
+        };
+    };
+    generate_problem_generate_problem_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["GenerateProblemRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["GeneratedProblemResponse"];
                 };
             };
             /** @description Validation Error */
