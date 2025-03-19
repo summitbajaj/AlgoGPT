@@ -2,15 +2,22 @@ FROM python:3.9-slim
 
 WORKDIR /code-runner
 
-# Install minimal requirements
+# Install necessary packages 
+RUN apt-get update && apt-get install -y gcc && rm -rf /var/lib/apt/lists/*
+
+# Install Python dependencies
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
+RUN pip install uvicorn
 
-# Copy shared_resources directory first
-COPY shared_resources/ ./shared_resources/
+# Copy everything in the current directory to /code-runner
+# (This includes the shared_resources that was copied by your script)
+COPY . /code-runner
 
-# Copy the rest of the application files
-COPY . .
+# Create non-root user for security
+RUN useradd -m appuser
+RUN chown -R appuser:appuser /code-runner
+USER appuser
 
 # Expose the port FastAPI will run on
 EXPOSE 5000
