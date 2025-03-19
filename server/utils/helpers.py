@@ -249,25 +249,20 @@ def convert_to_uuid(user_id_str: str) -> uuid.UUID:
         return new_uuid
 
 def initialize_student_profile(db: Session, student_id_str: str) -> StudentProfile:
-        # Convert the student_id string to a UUID (using your helper logic)
-        try:
-            uuid_student_id = uuid.UUID(student_id_str)
-        except ValueError:
-            uuid_student_id = uuid.uuid5(uuid.NAMESPACE_DNS, student_id_str)
         
         # Check if the student profile exists
         student_profile = db.query(StudentProfile).filter(
-            StudentProfile.user_id == uuid_student_id
+            StudentProfile.id == student_id_str
         ).first()
         
         # Create the profile if it doesn't exist
         if not student_profile:
-            student_profile = StudentProfile(user_id=uuid_student_id)
+            student_profile = StudentProfile(id=student_id_str)
             db.add(student_profile)
             db.flush()  # Get the ID assigned
             # Optionally, initialize other related records here
             db.commit()
-            print(f"Created new student profile for {uuid_student_id}")
+            print(f"Created new student profile for {student_id_str}")
         else:
-            print(f"Found existing student profile for {uuid_student_id}")
+            print(f"Found existing student profile for {student_id_str}")
         return student_profile

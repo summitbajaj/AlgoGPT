@@ -92,7 +92,7 @@ export default function ProblemPage() {
   useEffect(() => {
     const fetchData = async () => {
       try {
-        const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/problems/${params.id}`);
+        const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/problems/${params?.id}`);
         if (!res.ok) throw new Error("Problem not found");
         const data: Problem = await res.json();
         setProblem(data);
@@ -107,8 +107,8 @@ export default function ProblemPage() {
       }
     };
 
-    if (params.id) fetchData();
-  }, [params.id]);
+    if (params?.id) fetchData();
+  }, [params?.id]);
 
   // Reset complexity data when selecting a different submission
   useEffect(() => {
@@ -234,7 +234,7 @@ export default function ProblemPage() {
   }
 
   return (
-    <WebSocketProvider userId={userId} problemId={params.id}>
+    <WebSocketProvider userId={userId} problemId={params!.id}>
       <div className="fixed inset-0 bg-white text-black flex flex-col pt-[60px]">
         <PanelGroup direction="horizontal" className="flex-1">
           <Panel defaultSize={40} minSize={20}>
@@ -264,7 +264,7 @@ export default function ProblemPage() {
                   </TabsContent>
 
                   <TabsContent value="ai-chat" className="h-[calc(100vh-220px)]">
-                    <AIChat problemInfo={{problemId: params.id, problemTitle: problem.title}} />
+                    <AIChat problemInfo={{problemId: params!.id, problemTitle: problem.title}} />
                   </TabsContent>
                 </Tabs>
               </Card>
@@ -275,7 +275,7 @@ export default function ProblemPage() {
 
           <Panel minSize={30}>
             <CodeSection
-              key={params.id}
+              key={params!.id}
               problem={problem}
               userId={userId}
               isRunning={isRunning}

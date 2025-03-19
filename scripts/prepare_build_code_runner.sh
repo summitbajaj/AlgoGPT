@@ -12,7 +12,7 @@ cd code-runner
 # Build the image
 docker buildx build \
   --platform linux/amd64 \
-  -t algogptregistry.azurecr.io/algogpt-code-runner:v1.0.8 \
+  -t algogptregistry.azurecr.io/algogpt-code-runner:v1.0.9 \
   --push \
   -f Dockerfile \
   .

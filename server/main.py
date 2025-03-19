@@ -27,10 +27,13 @@ load_dotenv()
 
 app = FastAPI()
 
-# TODO: change name for proper url
-SUBMIT_CODE_SERVER_URL = "http://code-runner:5000/submit-code"
-ANALYZE_COMPLEXITY_URL = "http://code-runner:5000/analyze-complexity"
-RUN_CODE_URL = "http://code-runner:5000/run-user-tests"
+# Get code runner URL from environment variable with default for local development
+CODE_RUNNER_URL = os.environ.get("CODE_RUNNER_URL", "http://localhost:5000")
+
+# Use the environment variable for all endpoints
+SUBMIT_CODE_SERVER_URL = f"{CODE_RUNNER_URL}/submit-code"
+ANALYZE_COMPLEXITY_URL = f"{CODE_RUNNER_URL}/analyze-complexity"
+RUN_CODE_URL = f"{CODE_RUNNER_URL}/run-user-tests"
 
 # secured cors
 # Get frontend URL from environment variable with localhost fallback
