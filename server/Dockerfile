@@ -13,6 +13,9 @@ RUN pip install --no-cache-dir -r requirements.txt
 
 RUN pip install uvicorn
 
+# Copy the shared_resources directory
+COPY shared_resources/ ./shared_resources/
+
 # Copy the rest of the application
 COPY . .
 

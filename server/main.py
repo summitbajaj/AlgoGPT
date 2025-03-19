@@ -20,9 +20,6 @@ from uuid import UUID
 import datetime
 import uuid
 
-# Add shared_resources to Python path
-sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "shared_resources")))
-
 from shared_resources.schemas import SubmitCodeRequest, SubmitCodeResponse, ComplexityAnalysisRequest, ComplexityAnalysisResponse, GetProblemResponse, ExampleTestCaseModel, PostRunCodeRequest, RunCodeExecutionPayload,PostRunCodeResponse, ChatRequest, SubmitCodeExecutionPayload, ComplexityAnalysisPayload, GeneratedProblemResponse, GenerateProblemRequest, TopicListResponse
 
 # Load environment variables from .env file
