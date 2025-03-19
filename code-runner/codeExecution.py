@@ -7,8 +7,6 @@ import os
 from helper import run_code_using_user_tests, submit_user_code_tests
 from typing import Dict, List
 
-# Add shared_resources to Python path
-sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "shared_resources")))
 from shared_resources.schemas import RunCodeExecutionPayload, PostRunCodeResponse, SubmitCodeExecutionPayload, SubmitCodeTestResult, ComplexityAnalysisPayload
 
 # Import the benchmark-based complexity analysis function

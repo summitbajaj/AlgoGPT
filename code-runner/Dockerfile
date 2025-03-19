@@ -6,11 +6,14 @@ WORKDIR /code-runner
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
-# Copy only the necessary files
+# Copy shared_resources directory first
+COPY shared_resources/ ./shared_resources/
+
+# Copy the rest of the application files
 COPY . .
 
 # Expose the port FastAPI will run on
 EXPOSE 5000
 
-# Run with gunicorn and uvicorn workers for better performance
+# Run with uvicorn
 CMD ["python", "-m", "uvicorn", "codeExecution:app", "--host", "0.0.0.0", "--port", "5000"]
