@@ -1,5 +1,6 @@
 from pydantic import BaseModel
 from typing import List, Dict, Any, Optional
+from enum import Enum
 
 # generic schemas
 class RunCodeTestCase(BaseModel):
@@ -152,8 +153,51 @@ class StudentAssessmentResponse(BaseModel):
     recent_attempts: List[Dict[str, Any]]
     struggle_patterns: List[Dict[str, Any]]
 
-class AdminDashboardResponse(BaseModel):
-    student_count: int
-    topic_stats: List[Dict[str, Any]]
-    recent_assessments: List[Dict[str, Any]]
-    common_struggles: List[Dict[str, Any]]
+# Roadmap API
+# Difficulty enum (matches your DB model)
+class DifficultyLevel(str, Enum):
+    EASY = "Easy"
+    MEDIUM = "Medium"
+    HARD = "Hard"
+
+# Problem in roadmap
+class RoadmapProblemModel(BaseModel):
+    id: str
+    title: str
+    difficulty: str
+
+# Topic in roadmap
+class RoadmapTopicModel(BaseModel):
+    id: str
+    text: str
+    x: int
+    y: int
+    questions: List[RoadmapProblemModel]
+    total: int
+    has_questions: bool = True
+    
+    class Config:
+        orm_mode = True
+
+# Connection between topics
+class TopicConnectionModel(BaseModel):
+    from_id: str
+    to_id: str
+    
+    class Config:
+        orm_mode = True
+
+# Complete roadmap data
+class RoadmapResponse(BaseModel):
+    topics: List[RoadmapTopicModel]
+    connections: List[TopicConnectionModel]
+    
+    class Config:
+        orm_mode = True
+
+# List of topics
+class TopicListResponse(BaseModel):
+    topics: List[RoadmapTopicModel]
+    
+    class Config:
+        orm_mode = True

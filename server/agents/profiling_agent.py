@@ -8,7 +8,7 @@ import json
 import traceback
 from dotenv import load_dotenv
 from database.database import SessionLocal
-from database.models import StudentProfile, StudentTopicMastery, Topic, StudentAttempt, Problem
+from database.models import StudentProfile, StudentTopicMastery, Topic, StudentAttempt, Problem, ProfilingSession, ProfilingProblem
 from sqlalchemy import func 
 from datetime import datetime
 
@@ -817,7 +817,54 @@ def process_submission_and_continue(session_id: str, submission_result: Dict[str
                 # Finalize assessment
                 final_state = finalize_profiling(next_state)
                 profiling_agent.invoke(final_state, config=config)
-                
+
+                print("setting final state")
+                db = SessionLocal()
+                try:
+                    # Create or update profiling session
+                    session = db.query(ProfilingSession).filter(
+                        ProfilingSession.session_id == session_id
+                    ).first()
+                    
+                    if not session:
+                        session = ProfilingSession(
+                            student_id=final_state["student_id"],
+                            session_id=session_id,
+                            start_time=final_state["session_start_time"],
+                            end_time=datetime.utcnow()
+                        )
+                        db.add(session)
+                        # Add a flush here to generate the ID
+                        db.flush()
+                    
+                    # Update session data
+                    session.skill_level = final_state["assessment_status"]["estimated_skill_level"]
+                    session.overall_mastery = 0  # Calculate from topic masteries if available
+                    session.struggle_patterns = final_state.get("struggle_patterns", {})
+                    session.problems_attempted = len(final_state["completed_problems"])
+                    session.problems_solved = final_state["assessment_status"]["problems_solved"]
+                    
+                    # Add completed problems
+                    for prob in final_state["completed_problems"]:
+                        profiling_problem = ProfilingProblem(
+                            session_id=session.id,  # Now session.id should be available
+                            problem_id=prob["problem_id"],
+                            topic_id=prob["topic_id"],
+                            difficulty=prob["difficulty"],
+                            status=prob["status"]
+                        )
+                        db.add(profiling_problem)
+                    
+                    db.commit()
+                except Exception as e:
+                    db.rollback()
+                    print(f"Error saving profiling session: {str(e)}")
+                    # Add a stack trace for better debugging
+                    import traceback
+                    traceback.print_exc()
+                finally:
+                    db.close()
+
                 return {
                     "status": "completed",
                     "assessment": {

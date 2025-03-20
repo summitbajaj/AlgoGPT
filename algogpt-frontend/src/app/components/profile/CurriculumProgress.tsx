@@ -14,7 +14,7 @@ const dsaCurriculum = [
   { id: 'expert', name: 'Expert', topics: ['1-D DP', '2-D DP', 'Bit Manipulation', 'Math & Geometry'] }
 ];
 
-// Proper type definitions
+// Type definitions
 interface TopicMasteries {
   [key: string]: number;
 }
@@ -29,7 +29,7 @@ interface CurriculumProgressProps {
   data?: CurriculumData;
 }
 
-// Default data for preview/development purposes
+// Default data for preview purposes
 const defaultData: CurriculumData = {
   topicMasteries: {
     'Arrays & Hashing': 35,
@@ -53,22 +53,18 @@ const defaultData: CurriculumData = {
 };
 
 const CurriculumProgress: React.FC<CurriculumProgressProps> = ({ data = defaultData }) => {
-  // Fix: Change the state type to string | null to allow null values
   const [expandedSection, setExpandedSection] = useState<string | null>('fundamentals');
   
-  // Calculate section progress
   const calculateSectionProgress = (section: typeof dsaCurriculum[0]) => {
     const topics = section.topics;
     const totalMastery = topics.reduce((sum, topic) => sum + (data.topicMasteries[topic] || 0), 0);
     return Math.round(totalMastery / (topics.length * 100) * 100);
   };
   
-  // Determine if a section is the current focus
   const isCurrentFocus = (section: typeof dsaCurriculum[0]) => {
     return section.topics.includes(data.nextRecommendedTopic);
   };
   
-  // Get badge status for a topic
   const getTopicStatus = (topic: string) => {
     const mastery = data.topicMasteries[topic] || 0;
     if (mastery >= 70) return 'mastered';
@@ -124,34 +120,30 @@ const CurriculumProgress: React.FC<CurriculumProgressProps> = ({ data = defaultD
                       return (
                         <div 
                           key={topic} 
-                          className={`p-3 border rounded ${
-                            topic === data.nextRecommendedTopic 
-                              ? 'border-blue-300 bg-blue-50' 
-                              : ''
-                          }`}
+                          className={`p-3 border rounded ${topic === data.nextRecommendedTopic ? 'border-blue-300 bg-blue-50' : ''}`}
                         >
                           <div className="flex justify-between items-center mb-1">
                             <div className="flex items-center">
                               {status === 'mastered' && <CheckCircle className="h-4 w-4 mr-2 text-green-500" />}
-                              {status === 'learning' && <BookOpen className="h-4 w-4 mr-2 text-blue-500" />}
+                              {status === 'learning' && <BookOpen className="h-4 w-4 mr-2 text-[#4863f7]" />}
                               {status === 'started' && <AlertTriangle className="h-4 w-4 mr-2 text-amber-500" />}
                               <span className="font-medium">{topic}</span>
                             </div>
-                            <span className="text-sm">{mastery}%</span>
+                            <span className="text-sm">{Math.round(mastery)}%</span>
                           </div>
                           
                           <Progress 
                             value={mastery} 
                             className={`h-1.5 ${
                               mastery >= 70 ? "bg-green-500" : 
-                              mastery >= 40 ? "bg-blue-500" : 
-                              mastery > 0 ? "bg-amber-500" : ""
+                              mastery >= 40 ? "bg-[#4863f7]" : 
+                              mastery > 0 ? "bg-amber-500" : "bg-gray-200"
                             }`}
                           />
                           
                           {topic === data.nextRecommendedTopic && (
                             <div className="mt-2 flex">
-                              <Link href={`/learn/${topic.toLowerCase().replace(/ /g, '-')}`}>
+                              <Link href="/problems">
                                 <Button size="sm" className="text-xs h-7 px-2">
                                   Start Learning <ChevronRight className="ml-1 h-3 w-3" />
                                 </Button>

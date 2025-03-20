@@ -161,7 +161,6 @@ def generate_problem_prompt(topic_name: str, difficulty: str, existing_problem: 
 
 def validate_problem(problem_data: Dict[str, Any]) -> Dict[str, bool]:
     """Validate the generated problem for completeness and correctness"""
-    print("Problem data:", problem_data)
     validation = {
         "has_title": len(problem_data.get("title", "")) > 5,
         "has_description": len(problem_data.get("description", "")) > 50,

@@ -18,3 +18,10 @@ export type RunCodeTestCaseResult = components["schemas"]["RunCodeTestCaseResult
 // for analyze-code endpoint
 export type ComplexityAnalysisRequest = components["schemas"]["ComplexityAnalysisRequest"];
 export type ComplexityAnalysisResponse = components["schemas"]["ComplexityAnalysisResponse"];
+
+// for roadmap endpoint
+export type RoadmapResponse = components["schemas"]["RoadmapResponse"];
+export type RoadmapTopicModel = components["schemas"]["RoadmapTopicModel"];
+export type RoadmapProblemModel = components["schemas"]["RoadmapProblemModel"];
+export type TopicConnectionModel = components["schemas"]["TopicConnectionModel"];
+export type TopicListResponse = components["schemas"]["TopicListResponse"];

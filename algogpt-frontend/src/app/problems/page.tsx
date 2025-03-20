@@ -26,7 +26,7 @@ export default function ProblemsPage() {
     const fetchProblems = async () => {
       setIsLoading(true)
       try {
-        const response = await fetch("http://localhost:8000/problems")
+        const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/problems`)
         const data: Problem[] = await response.json()
         setProblems(data)
 
@@ -63,7 +63,7 @@ export default function ProblemsPage() {
       <Tabs defaultValue="problems" className="w-full">
         <TabsList className="mb-4">
           <TabsTrigger value="problems">Problems</TabsTrigger>
-          <TabsTrigger value="roadmap">Roadmap</TabsTrigger>
+          <TabsTrigger value="progress">Progress</TabsTrigger>
         </TabsList>
 
         <TabsContent value="problems">
@@ -167,11 +167,11 @@ export default function ProblemsPage() {
           </div>
         </TabsContent>
 
-        {/* Roadmap Tab Content */}
-        <TabsContent value="roadmap">
+        {/* Progress Tab Content */}
+        <TabsContent value="progress">
           <Card className="p-6">
-            <h2 className="text-2xl font-bold mb-6">Learning Roadmap</h2>
-            {/* Roadmap content using categories */}
+            <h2 className="text-2xl font-bold mb-6">Learning Progress</h2>
+            {/* Progress content using categories */}
             <div className="mt-6 grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
               {categories.map((category) => {
                 const categoryProblems = problems.filter((problem) =>

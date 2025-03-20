@@ -15,12 +15,10 @@ from agents.ai_complexity_analyzer import AIComplexityAnalyzer
 from agents.question_generator_agent import generate_new_problem
 from utils.embedding_creator import create_embedding_after_generation
 from profiling_api import register_profiling_api
+from roadmap_api import register_roadmap_api
 from uuid import UUID
 import datetime
 import uuid
-
-# Add shared_resources to Python path
-sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "shared_resources")))
 
 from shared_resources.schemas import SubmitCodeRequest, SubmitCodeResponse, ComplexityAnalysisRequest, ComplexityAnalysisResponse, GetProblemResponse, ExampleTestCaseModel, PostRunCodeRequest, RunCodeExecutionPayload,PostRunCodeResponse, ChatRequest, SubmitCodeExecutionPayload, ComplexityAnalysisPayload, GeneratedProblemResponse, GenerateProblemRequest, TopicListResponse
 
@@ -29,18 +27,26 @@ load_dotenv()
 
 app = FastAPI()
 
-# TODO: change name for proper url
-SUBMIT_CODE_SERVER_URL = "http://code-runner:5000/submit-code"
-ANALYZE_COMPLEXITY_URL = "http://code-runner:5000/analyze-complexity"
-RUN_CODE_URL = "http://code-runner:5000/run-user-tests"
+# Get code runner URL from environment variable with default for local development
+CODE_RUNNER_URL = os.environ.get("CODE_RUNNER_URL", "http://localhost:5000")
 
-# ✅ Enable CORS
+# Use the environment variable for all endpoints
+SUBMIT_CODE_SERVER_URL = f"{CODE_RUNNER_URL}/submit-code"
+ANALYZE_COMPLEXITY_URL = f"{CODE_RUNNER_URL}/analyze-complexity"
+RUN_CODE_URL = f"{CODE_RUNNER_URL}/run-user-tests"
+
+# secured cors
+# Get frontend URL from environment variable with localhost fallback
+FRONTEND_URL = os.environ.get("FRONTEND_URL", "http://localhost:3000")
+# Parse multiple frontend URLs if provided as comma-separated list
+ALLOWED_ORIGINS = [origin.strip() for origin in FRONTEND_URL.split(",")]
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],  # Allow all origins (change this in production)
+    allow_origins=ALLOWED_ORIGINS,  # Use environment variable instead of wildcard
     allow_credentials=True,
-    allow_methods=["*"],  # Allow all HTTP methods (GET, POST, etc.)
-    allow_headers=["*"],  # Allow all headers
+    allow_methods=["GET", "POST", "PUT", "DELETE", "OPTIONS"],  # Specify methods explicitly
+    allow_headers=["Content-Type", "Authorization", "X-Requested-With"],  # Specify headers explicitly
 )
 
 # Dependency to get a database session
@@ -53,6 +59,7 @@ def get_db():
 
 # Register profiling API routes
 register_profiling_api(app)
+register_roadmap_api(app)
 
 # -------------------------------
 # 1️⃣ Fetch all problems that are not ai generated

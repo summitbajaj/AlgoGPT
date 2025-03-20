@@ -7,10 +7,9 @@ from agents.profiling_agent import start_profiling_session, process_submission_a
 from agents.question_selector_agent import select_problem
 from agents.analysis_agent import analyze_submission
 import traceback
-import uuid
 import sys
 import os
-from database.models import StudentProfile, StudentTopicMastery, Topic, StudentAttempt, Problem, Submission
+from database.models import StudentProfile, StudentTopicMastery, Topic, StudentAttempt, Problem, Submission, ProfilingSession, CodeAnalysis
 
 # Add shared_resources to Python path
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "shared_resources")))
@@ -22,7 +21,6 @@ from shared_resources.schemas import (
     ProfilingStatusRequest,
     ProfilingStatusResponse,
     StudentAssessmentResponse,
-    AdminDashboardResponse
 )
 
 # Define get_db function here to avoid circular imports
@@ -112,6 +110,22 @@ async def api_submit_profiling_answer(
                         request.submission_result["problem_id"] = submission.problem_id
                 except Exception as e:
                     pass
+        if "user_code" in request.submission_result:
+            try:
+                # Call the analysis agent
+                analysis_result = analyze_submission(
+                    student_id=request.submission_result.get("student_id"),
+                    problem_id=request.submission_result.get("problem_id"),
+                    submission_id=request.submission_result.get("submission_id"),
+                    submission_code=request.submission_result.get("user_code"),
+                    submission_status=request.submission_result.get("status"),
+                    test_results=request.submission_result.get("test_results", []),
+                    is_profiling=True
+                )
+                print(f"Analysis completed: {analysis_result.get('success', False)}")
+            except Exception as e:
+                # Don't fail the submission process if analysis fails
+                print(f"Error in submission analysis: {str(e)}")
         
         # Process submission and get next problem
         result = process_submission_and_continue(
@@ -353,13 +367,72 @@ async def get_student_assessment(
         elif overall_mastery >= 50:
             skill_level = "Intermediate"
         
-        # Get struggle patterns
-        struggle_patterns = [
-            {"area": "Algorithm Pattern Recognition", "count": 3},
-            {"area": "Edge Case Handling", "count": 2},
-            {"area": "Time/Space Optimization", "count": 1},
-            {"area": "Data Structure Selection", "count": 1}
-        ]
+        # Get struggle patterns from actual data
+        struggle_counts = {}
+        
+        # Try to get from CodeAnalysis table
+        try:
+            code_analyses = db.query(CodeAnalysis).filter(
+                CodeAnalysis.student_id == student_id
+            ).order_by(CodeAnalysis.created_at.desc()).limit(20).all()
+            
+            for analysis in code_analyses:
+                if analysis.struggle_areas:
+                    for area in analysis.struggle_areas:
+                        struggle_counts[area] = struggle_counts.get(area, 0) + 1
+        except Exception as e:
+            print(f"Error querying code analyses: {str(e)}")
+        
+        # If not enough data, also check ProfilingSession table
+        if len(struggle_counts) < 2:
+            try:
+                profiling_sessions = db.query(ProfilingSession).filter(
+                    ProfilingSession.student_id == student_id
+                ).order_by(ProfilingSession.created_at.desc()).limit(5).all()
+                
+                for session in profiling_sessions:
+                    if session.struggle_patterns:
+                        for area, count in session.struggle_patterns.items():
+                            struggle_counts[area] = struggle_counts.get(area, 0) + count
+            except Exception as e:
+                print(f"Error querying profiling sessions: {str(e)}")
+        
+        # Convert to expected format and sort by count
+        struggle_patterns = []
+        if struggle_counts:
+            struggle_patterns = [
+                {"area": area, "count": count} 
+                for area, count in struggle_counts.items()
+            ]
+            struggle_patterns.sort(key=lambda x: x["count"], reverse=True)
+            
+            # Define readable names for the frontend
+            area_display_names = {
+                "algorithm_understanding": "Algorithm Pattern Recognition",
+                "algorithm_selection": "Algorithm Pattern Recognition",
+                "algorithm_application": "Algorithm Pattern Recognition",
+                "data_structure_misuse": "Data Structure Selection",
+                "data_structure": "Data Structure Selection",
+                "logic_errors": "Logic Implementation",
+                "efficiency_problems": "Time/Space Optimization",
+                "time_complexity": "Time/Space Optimization",
+                "space_complexity": "Time/Space Optimization",
+                "edge_case_handling": "Edge Case Handling",
+                "edge_cases": "Edge Case Handling"
+            }
+            
+            # Transform the area names for display
+            for pattern in struggle_patterns:
+                if pattern["area"] in area_display_names:
+                    pattern["area"] = area_display_names[pattern["area"]]
+            
+            # Take top 4 most frequent struggle areas
+            struggle_patterns = struggle_patterns[:4]
+        
+        # If we couldn't find any struggle patterns, return an empty list
+        # instead of hardcoded values
+        if not struggle_patterns:
+            struggle_patterns = []
         
         return {
             "student_id": student_id,
@@ -376,104 +449,6 @@ async def get_student_assessment(
         # Convert other exceptions to 500 errors
         raise HTTPException(status_code=500, detail=str(e))
 
-# Admin Dashboard Endpoint
-@profiling_router.get("/admin/dashboard", response_model=AdminDashboardResponse)
-async def get_admin_dashboard(db: Session = Depends(get_db)):
-    """Get aggregated data for admin dashboard"""
-    try:
-        # Get student count
-        student_count = db.query(StudentProfile).count()
-        
-        # Get topic stats
-        topic_stats = []
-        topics = db.query(Topic).all()
-        
-        for topic in topics:
-            # Average mastery for this topic
-            avg_mastery = db.query(func.avg(StudentTopicMastery.mastery_level)).filter(
-                StudentTopicMastery.topic_id == topic.id,
-                StudentTopicMastery.problems_attempted > 0
-            ).scalar() or 0
-            
-            # Success rate
-            masteries = db.query(StudentTopicMastery).filter(
-                StudentTopicMastery.topic_id == topic.id,
-                StudentTopicMastery.problems_attempted > 0
-            ).all()
-            
-            success_rate = 0
-            total_attempts = 0
-            if masteries:
-                total_attempted = sum(m.problems_attempted for m in masteries)
-                total_solved = sum(m.problems_solved for m in masteries)
-                success_rate = (total_solved / total_attempted * 100) if total_attempted > 0 else 0
-                total_attempts = total_attempted
-            
-            topic_stats.append({
-                "topic_name": topic.name,
-                "avg_mastery": float(avg_mastery),
-                "success_rate": float(success_rate),
-                "total_attempts": total_attempts
-            })
-        
-        # Get recent assessments
-        # This assumes you're storing assessment completion timestamps
-        # You might need to adapt this based on your data model
-        recent_profiles = db.query(StudentProfile).order_by(
-            StudentProfile.updated_at.desc()
-        ).limit(10).all()
-        
-        recent_assessments = []
-        for profile in recent_profiles:
-            # Determine user name (you'll need to adapt this to your user model)
-            # This is a placeholder - replace with your actual user lookup
-            username = "User " + str(profile.user_id)[:8]
-            
-            # Calculate skill level and stats
-            masteries = db.query(StudentTopicMastery).filter(
-                StudentTopicMastery.student_profile_id == profile.id
-            ).all()
-            
-            skill_level = "Beginner"
-            problems_attempted = 0
-            problems_solved = 0
-            
-            if masteries:
-                avg_mastery = sum(m.mastery_level for m in masteries) / len(masteries)
-                if avg_mastery >= 80:
-                    skill_level = "Advanced"
-                elif avg_mastery >= 50:
-                    skill_level = "Intermediate"
-                
-                problems_attempted = sum(m.problems_attempted for m in masteries)
-                problems_solved = sum(m.problems_solved for m in masteries)
-            
-            recent_assessments.append({
-                "id": str(profile.user_id),
-                "name": username,
-                "assessment_date": profile.updated_at,
-                "skill_level": skill_level,
-                "problems_attempted": problems_attempted,
-                "problems_solved": problems_solved
-            })
-        
-        # Get common struggle areas - enhanced with more specific DSA contexts
-        common_struggles = [
-            {"area": "Algorithm Pattern Recognition", "percentage": 68, "count": 32},
-            {"area": "Edge Case Handling", "percentage": 57, "count": 27},
-            {"area": "Time/Space Optimization", "percentage": 51, "count": 24},
-            {"area": "Data Structure Selection", "percentage": 40, "count": 19},
-            {"area": "Code Organization", "percentage": 23, "count": 11}
-        ]
-        
-        return {
-            "student_count": student_count,
-            "topic_stats": topic_stats,
-            "recent_assessments": recent_assessments,
-            "common_struggles": common_struggles
-        }
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
 
 # Function to register the router with the main app
 def register_profiling_api(app):

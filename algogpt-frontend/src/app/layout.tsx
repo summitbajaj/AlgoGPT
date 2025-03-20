@@ -22,7 +22,7 @@ export default function RootLayout({
         <AuthProvider>
           <div className="flex flex-col min-h-screen">
             <NavBar />
-            <main className="flex-grow">{children}</main>
+            <main className="flex-grow container mx-auto px-4 sm:px-6 py-6">{children}</main>
           </div>
         </AuthProvider>
       </body>
